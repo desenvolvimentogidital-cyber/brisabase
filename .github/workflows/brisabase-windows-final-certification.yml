@@ -61,12 +61,6 @@ jobs:
       - name: CI security, tests and build
         run: npm run test:ci
 
-      - name: Install Playwright Chromium
-        run: npx playwright install chromium
-
-      - name: Browser regression gate
-        run: npm run test:browser
-
   certify-windows:
     needs: preflight
     runs-on: self-hosted
@@ -95,6 +89,7 @@ jobs:
           npm --version
           git --version
           docker --version
+          docker compose version
 
       - name: Install locked dependencies
         run: npm ci
@@ -111,17 +106,11 @@ jobs:
       - name: CI security, tests and build
         run: npm run test:ci
 
-      - name: Install Playwright Chromium
-        run: npx playwright install chromium
-
-      - name: Browser regression gate
-        run: npm run test:browser
-
       - name: Docker availability
         shell: pwsh
         run: |
           docker version
           docker info
 
-      - name: Docker release certification
+      - name: Docker, real integration and browser release certification
         run: npm run release:validate:docker
