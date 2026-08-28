@@ -74,13 +74,19 @@ assert.match(restRouter, /securityEngine\.evaluate\(ApiGateway\.toSecurityContex
 assert.match(restRouter, /securityEngine\.evaluate\(ApiGateway\.toSecurityContext\(ctx, req\), 'table', apiResource\.table, 'DELETE'/);
 
 // Database control-plane routes must stay behind both authentication and tenant
-// authorization. Data-plane credentials must not be able to reach them.
+// authorization. Data-plane credentials must not be able to reach them. Built-in
+// roles and Enterprise custom roles are both evaluated against the same requested
+// permission before the trusted organization role is copied onto the request.
 const authIndex = server.indexOf('app.use(authMiddleware);');
 const controlPlaneIndex = server.indexOf('app.use(controlPlaneAuthorizationMiddleware);');
 const databaseIndex = server.indexOf('app.use(config.testMode ? databaseRouter : realDatabaseRouter);');
 assert.ok(authIndex >= 0 && controlPlaneIndex > authIndex && databaseIndex > controlPlaneIndex, 'Database management routes must remain behind authMiddleware and controlPlaneAuthorizationMiddleware.');
 assert.match(authMiddleware, /if \(req\.authKind !== 'admin' \|\| !req\.user\)/, 'Control-plane authorization must require an admin credential.');
-assert.match(authMiddleware, /if \(!roleAllows\(role, permission\)\)/, 'Control-plane authorization must enforce organization role permissions.');
+assert.match(
+  authMiddleware,
+  /if \(!roleAllows\(role, permission\) && !await enterpriseEngine\.customRoleAllows\(organizationId, role, permission\)\)/,
+  'Control-plane authorization must enforce built-in or explicitly configured Enterprise custom-role permissions.',
+);
 
 console.log('  ✅ PASS: Database Editor bypass is scoped to authorized admin sessions.');
 console.log('  ✅ PASS: Database write tools remain restricted to owner/admin.');
