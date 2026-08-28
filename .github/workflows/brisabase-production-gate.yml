@@ -1,0 +1,16 @@
+name: BrisaBase Production Gate
+on:
+  workflow_dispatch:
+jobs:
+  release-gates:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      - run: npm run phase8:verify
+      - run: npm run test:ci
+      - run: npm run release:validate:docker
