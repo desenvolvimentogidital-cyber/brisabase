@@ -1,0 +1,8 @@
+--- a/server/tests/production-config-contract.test.ts
++++ b/server/tests/production-config-contract.test.ts
+@@ -6,4 +6,5 @@
+ const managed: NodeJS.ProcessEnv = {
+   ...process.env,
+   NODE_ENV: 'production', BRISABASE_DEPLOYMENT_MODE: 'managed', VITE_DATA_SOURCE: 'api', BRISABASE_RELEASE: '2026.8.11',
++  HOSTING_CUSTOM_DOMAINS_ENABLED: 'false',
+   APP_URL: 'https://brisabase.onrender.com', API_URL: 'https://brisabase.onrender.com', STORAGE_PUBLIC_URL: 'https://brisabase.onrender.com', CORS_ALLOWED_ORIGINS: 'https://app.contract.invalid,https://admin.contract.invalid',
