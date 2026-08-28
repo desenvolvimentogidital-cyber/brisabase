@@ -112,7 +112,7 @@ const compose = readFileSync('docker-compose.production.yml', 'utf8');
 const serviceBlock = compose.slice(compose.indexOf('services:'), compose.indexOf('\nnetworks:'));
 const services = [...serviceBlock.matchAll(/^  ([a-z][a-z0-9-]*):$/gm)].map((match) => match[1]);
 assert.deepEqual(services, ['postgres', 'redis', 'minio', 'minio-init', 'functions-executor', 'brisabase', 'reverse-proxy'], 'Production Compose contains an unexpected runtime or is missing a required service.');
-assert.doesNotMatch(serviceBlock, /mailpit|seed|mock|BACKUP_(?:ENCRYPTION_KEY|STORAGE_BUCKET)|server\/backup\/data/i, 'Production Compose contains a development fixture or disabled embedded-backup residue.');
+assert.doesNotMatch(serviceBlock, /mailpit|seed|mock|server\/backup\/data/i, 'Production Compose contains a development fixture or embedded filesystem-backup residue.');
 assert.match(serviceBlock, /minio-init:[\s\S]*MINIO_ROOT_USER:[\s\S]*S3_ACCESS_KEY:[\s\S]*deploy\/minio-init\.sh/, 'MinIO initializer must receive root credentials only for provisioning and mount the least-privilege bootstrap script.');
 const minioInit = readFileSync('deploy/minio-init.sh', 'utf8');
 assert.match(minioInit, /mc admin user add/, 'MinIO initializer must create a dedicated application identity.');
