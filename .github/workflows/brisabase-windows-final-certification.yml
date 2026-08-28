@@ -28,7 +28,7 @@ jobs:
         run: npm ci
 
       - name: Apply audited release fixes
-        run: node scripts/final-release-fixes.cjs
+        run: node scripts/final-release-fixes-v2.cjs
 
       - name: TypeScript gate
         run: npm run typecheck
