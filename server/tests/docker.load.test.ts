@@ -67,7 +67,7 @@ async function run(): Promise<void> {
   const elapsed = performance.now() - startedAt;
   assert.deepEqual(failures.slice(0, 10), [], `${failures.length} load requests failed.`);
   assert.ok(p95 <= p95BudgetMs, `p95 ${p95.toFixed(1)}ms exceeded ${p95BudgetMs}ms budget.`);
-  await json(`/api/database/tables/${table}`, 200, 'DELETE', undefined, control);
+  await json(`/api/database/tables/${table}?confirm=${encodeURIComponent(table)}`, 200, 'DELETE', undefined, control);
   const totalRequests = requests * rounds;
   console.log(JSON.stringify({ gate: 'load-smoke', requests: totalRequests, rounds, concurrency, failures: failures.length, p50Ms: Number(p50.toFixed(1)), p95Ms: Number(p95.toFixed(1)), durationMs: Number(elapsed.toFixed(1)), requestsPerSecond: Number((totalRequests / (elapsed / 1000)).toFixed(1)) }));
 }
