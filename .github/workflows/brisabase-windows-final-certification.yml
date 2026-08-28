@@ -65,6 +65,9 @@ jobs:
     needs: preflight
     runs-on: self-hosted
     timeout-minutes: 180
+    defaults:
+      run:
+        shell: powershell
 
     steps:
       - name: Checkout latest certification branch
@@ -80,7 +83,6 @@ jobs:
           cache: npm
 
       - name: Runner diagnostics
-        shell: pwsh
         run: |
           Write-Host "Runner: $env:RUNNER_NAME"
           Write-Host "OS: $env:RUNNER_OS"
@@ -107,7 +109,6 @@ jobs:
         run: npm run test:ci
 
       - name: Docker availability
-        shell: pwsh
         run: |
           docker version
           docker info
