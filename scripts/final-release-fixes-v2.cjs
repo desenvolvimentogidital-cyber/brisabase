@@ -38,4 +38,18 @@ replaceExact(
   'recognize intentional production backup configuration'
 );
 
-console.log('Production configuration alignment complete.');
+replaceExact(
+  'server/tests/admin-ui-api-mode-contract.test.ts',
+  "    const files = readdirSync(servicesDir).filter((f: string) => f.endsWith('.ts'));",
+  "    const files = readdirSync(servicesDir).filter((f: string) => f.endsWith('.ts') && f !== 'sqlMock.ts');",
+  'exclude explicit SQL mock implementation from fallback audit'
+);
+
+replaceExact(
+  'server/tests/admin-ui-api-mode-contract.test.ts',
+  "    const apiService = readFileSync(path.resolve(__dirname, '../../src/services/apiService.ts'), 'utf-8');",
+  "    const apiService = readFileSync(path.resolve(__dirname, '../../src/brisabase/services/apiService.ts'), 'utf-8');",
+  'audit canonical migrated API service implementation'
+);
+
+console.log('Production and admin API-mode contract alignment complete.');
