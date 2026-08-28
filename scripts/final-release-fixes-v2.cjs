@@ -80,4 +80,18 @@ replaceExact(
   'logout and verify the active post-replay session'
 );
 
-console.log('Production, admin API-mode, compatibility-style, and Docker auth-session alignment complete.');
+replaceExact(
+  'server/billing/localBillingEngine.ts',
+  'SELECT coalesce(sum(o.size_bytes),0)::text AS bytes FROM storage_objects o JOIN projects p ON p.id=o.project_id WHERE p.organization_id=$1',
+  'SELECT coalesce(sum(o.size),0)::text AS bytes FROM storage_objects o JOIN projects p ON p.id=o.project_id WHERE p.organization_id=$1',
+  'align billing storage usage with canonical storage object size column'
+);
+
+replaceExact(
+  'server/tests/billing-enterprise-iac-phase8-contract.test.cjs',
+  "const billing=read('server/billing/localBillingEngine.ts');const billingRoutes=read('server/routes/billing.ts');",
+  "const billing=read('server/billing/localBillingEngine.ts');const billingRoutes=read('server/routes/billing.ts');const storageMigration=read('server/db/migrations/004_storage_metadata_persistence.sql');\nassert(/\\bsize BIGINT NOT NULL\\b/.test(storageMigration),'canonical storage object size column missing');\nassert(billing.includes('sum(o.size)'),'billing storage usage must use canonical storage_objects.size');\nassert(!billing.includes('sum(o.size_bytes)'),'billing must not use legacy storage_objects.size_bytes');",
+  'guard billing and storage schema compatibility'
+);
+
+console.log('Production, admin API-mode, compatibility-style, Docker auth-session, and billing-storage schema alignment complete.');

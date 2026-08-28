@@ -32,8 +32,10 @@ jobs:
         run: |
           audited_paths=(
             server/config.ts
+            server/billing/localBillingEngine.ts
             server/tests/production-config-contract.test.ts
             server/tests/admin-ui-api-mode-contract.test.ts
+            server/tests/billing-enterprise-iac-phase8-contract.test.cjs
             server/tests/docker.integration.test.ts
             src/index.css
           )
