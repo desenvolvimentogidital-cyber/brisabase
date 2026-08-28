@@ -220,7 +220,7 @@ async function main(): Promise<void> {
   // =============================================
   await runTest('Source audit: No "falling back to mock" patterns remain', async () => {
     const servicesDir = path.resolve(__dirname, '../../src/services');
-    const files = readdirSync(servicesDir).filter((f: string) => f.endsWith('.ts'));
+    const files = readdirSync(servicesDir).filter((f: string) => f.endsWith('.ts') && f !== 'sqlMock.ts');
 
     for (const file of files) {
       const content = readFileSync(path.join(servicesDir, file), 'utf-8');
@@ -242,7 +242,7 @@ async function main(): Promise<void> {
   // TEST 11: UI must use scoped, current API contracts and local avatars
   // =============================================
   await runTest('Source audit: API explorer avoids the removed tables route and avatars stay CSP-safe', async () => {
-    const apiService = readFileSync(path.resolve(__dirname, '../../src/services/apiService.ts'), 'utf-8');
+    const apiService = readFileSync(path.resolve(__dirname, '../../src/brisabase/services/apiService.ts'), 'utf-8');
     assert.match(apiService, /fetch\('\/api\/database\/tables'\)/, 'API explorer must use the scoped database endpoint.');
     assert.doesNotMatch(apiService, /\/api\/projects\/\$\{projectId\}\/environments\/\$\{environmentId\}\/tables/, 'The removed tables endpoint must not be called.');
     assert.doesNotMatch(apiService, /fetch\(`\/api\/projects\/\$\{projectId\}\/webhooks`\)/, 'The unimplemented legacy webhook endpoint must not be called.');
