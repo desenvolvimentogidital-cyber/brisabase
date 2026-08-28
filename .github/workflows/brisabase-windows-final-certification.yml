@@ -25,6 +25,9 @@ jobs:
       - name: TypeScript gate
         run: npm run typecheck
 
+      - name: Build SDK verification artifact
+        run: npm run build:sdk
+
       - name: Phase 8 verification chain
         run: npm run phase8:verify
 
@@ -71,6 +74,9 @@ jobs:
 
       - name: TypeScript gate
         run: npm run typecheck
+
+      - name: Build SDK verification artifact
+        run: npm run build:sdk
 
       - name: Phase 8 verification chain
         run: npm run phase8:verify
