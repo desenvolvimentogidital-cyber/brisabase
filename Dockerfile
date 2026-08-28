@@ -41,8 +41,11 @@ RUN printf '%s\n' '#!/bin/sh' 'exec node /usr/local/lib/brisabase/postgres-tool-
 
 COPY --from=build /app/dist ./dist
 COPY --from=build /app/server/db/migrations ./server/db/migrations
-# Shared TLS helper is required by the operator DB tools copied below.
+# Shared TLS and upgrade-compatibility helpers are required by the operator DB
+# tools copied below. Keep them beside the CommonJS callers so relative requires
+# also work in production and disposable migration containers.
 COPY --from=build /app/server/db/pg-ssl-options.cjs ./server/db/pg-ssl-options.cjs
+COPY --from=build /app/server/db/legacy-compat.cjs ./server/db/legacy-compat.cjs
 # Kept for explicit operator use only; production startup does not invoke it.
 COPY --from=build /app/server/db/migrate.cjs ./server/db/migrate.cjs
 COPY --from=build /app/server/db/status.cjs ./server/db/status.cjs
