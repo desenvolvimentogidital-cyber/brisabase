@@ -9,14 +9,53 @@ permissions:
   contents: write
 
 jobs:
-  certify:
-    runs-on: self-hosted
-    timeout-minutes: 180
-
+  prepare:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
     steps:
       - name: Checkout certification branch
         uses: actions/checkout@v4
         with:
+          fetch-depth: 0
+
+      - name: Configure Node.js 22
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      - name: Install locked dependencies
+        run: npm ci
+
+      - name: Apply audited release fixes
+        run: node scripts/final-release-fixes.cjs
+
+      - name: TypeScript gate
+        run: npm run typecheck
+
+      - name: Persist validated source fixes
+        shell: bash
+        run: |
+          if [[ -n "$(git status --porcelain)" ]]; then
+            git config user.name "BrisaBase Release Bot"
+            git config user.email "noreply@brisabase.local"
+            git add server/db/databasePhase2.ts src/context/AppContext.tsx src/components/ui/Button.tsx examples/real-app/src/App.tsx examples/real-app/package.json tsconfig.json
+            git commit -m "fix: clear final TypeScript release gates"
+            git push origin "HEAD:${GITHUB_REF_NAME}"
+          else
+            echo "No source changes to persist."
+          fi
+
+  certify:
+    needs: prepare
+    runs-on: self-hosted
+    timeout-minutes: 180
+
+    steps:
+      - name: Checkout latest certification branch
+        uses: actions/checkout@v4
+        with:
+          ref: fix/final-release-gates
           fetch-depth: 0
 
       - name: Configure Node.js 22
@@ -43,25 +82,8 @@ jobs:
       - name: Install locked dependencies
         run: npm ci
 
-      - name: Apply audited release fixes
-        run: node scripts/final-release-fixes.cjs
-
       - name: TypeScript gate
         run: npm run typecheck
-
-      - name: Persist validated source fixes
-        shell: pwsh
-        run: |
-          $changes = git status --porcelain
-          if ($changes) {
-            git config user.name "BrisaBase Release Bot"
-            git config user.email "noreply@brisabase.local"
-            git add server/db/databasePhase2.ts src/context/AppContext.tsx src/components/ui/Button.tsx examples/real-app/src/App.tsx examples/real-app/package.json tsconfig.json
-            git commit -m "fix: clear final TypeScript release gates"
-            git push origin "HEAD:$env:GITHUB_REF_NAME"
-          } else {
-            Write-Host "No source changes to persist."
-          }
 
       - name: Phase 8 verification chain
         run: npm run phase8:verify
