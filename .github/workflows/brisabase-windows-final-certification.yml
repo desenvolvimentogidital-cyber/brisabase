@@ -5,6 +5,9 @@ on:
     branches:
       - fix/final-release-gates
 
+permissions:
+  contents: write
+
 jobs:
   preflight:
     runs-on: ubuntu-latest
@@ -12,12 +15,30 @@ jobs:
     steps:
       - name: Checkout certification branch
         uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
 
       - name: Configure Node.js 22
         uses: actions/setup-node@v4
         with:
           node-version: 22
           cache: npm
+
+      - name: Synchronize audited release fixture
+        run: node scripts/final-release-fixes-v2.cjs
+
+      - name: Persist production fixture correction
+        shell: bash
+        run: |
+          if [[ -n "$(git status --porcelain -- server/tests/production-config-contract.test.ts)" ]]; then
+            git config user.name "BrisaBase Release Bot"
+            git config user.email "noreply@brisabase.local"
+            git add server/tests/production-config-contract.test.ts
+            git commit -m "test: include AI provider allowlist in production fixture"
+            git push origin "HEAD:${GITHUB_REF_NAME}"
+          else
+            echo "Production fixture is already synchronized."
+          fi
 
       - name: Install locked dependencies
         run: npm ci
