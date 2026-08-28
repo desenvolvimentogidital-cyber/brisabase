@@ -34,7 +34,7 @@ replaceExact(
 replaceExact(
   'tsconfig.json',
   '    "paths": {\n      "@/*": [\n        "./*"\n      ],\n      "@brisabase/js": [\n        "./developer/sdk/index.ts"\n      ]\n    },',
-  '    "paths": {\n      "@/*": [\n        "./*"\n      ],\n      "@brisabase/sdk": [\n        "./src/sdk/brisaBaseClient.ts\"\n      ]\n    },',
+  '    "paths": {\n      "@/*": [\n        "./*"\n      ],\n      "@brisabase/sdk": [\n        "./src/sdk/brisaBaseClient.ts"\n      ]\n    },',
   'resolve real-app SDK alias to full in-repo client'
 );
 
