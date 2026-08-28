@@ -18,6 +18,9 @@
     "paths": {
       "@/*": [
         "./*"
+      ],
+      "@brisabase/sdk": [
+        "./src/sdk/brisaBaseClient.ts"
       ]
     },
     "allowImportingTsExtensions": true,

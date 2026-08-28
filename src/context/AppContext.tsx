@@ -41,17 +41,24 @@ interface AppContextType {
   activeProjectId: string | null;
   activeEnvironmentId: string;
   currentProject: Project | null;
-  environment: string;
+  environment: Project['category'];
+  setEnvironment: (environment: Project['category']) => Promise<void>;
   isLoadingProjects: boolean;
   addToast: (title: string, description?: string, type?: 'success' | 'info' | 'warning' | 'error') => void;
   notifications: NotificationItem[];
   unreadNotificationsCount: number;
+  markNotificationAsRead: (notificationId: string) => void;
   markAllNotificationsRead: () => void;
+  markAllNotificationsAsRead: () => void;
   toasts: ToastItem[];
   showToast: (title: string, description?: string, type?: 'success' | 'info' | 'warning' | 'error') => void;
   removeToast: (id: string) => void;
   isSearchOpen: boolean;
   setIsSearchOpen: (open: boolean) => void;
+  isGlobalSearchOpen: boolean;
+  setGlobalSearchOpen: (open: boolean) => void;
+  isMobileSidebarOpen: boolean;
+  setMobileSidebarOpen: (open: boolean) => void;
 }
 
 const defaultUser: AuthUser = {
@@ -108,6 +115,7 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
   const [notifications, setNotifications] = useState<NotificationItem[]>([]);
   const [toasts, setToasts] = useState<ToastItem[]>([]);
   const [isSearchOpen, setIsSearchOpen] = useState<boolean>(false);
+  const [isMobileSidebarOpen, setMobileSidebarOpen] = useState<boolean>(false);
 
   const showToast = useCallback((
     title: string,
@@ -241,6 +249,25 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
     if (project) setActiveProject(project);
   };
 
+  const setEnvironment = async (nextEnvironment: Project['category']): Promise<void> => {
+    if (!activeProject || activeProject.category === nextEnvironment) return;
+    try {
+      const updated = await mockApi.updateProject(activeProject.id, {
+        category: nextEnvironment,
+        environment: nextEnvironment
+      });
+      setProjects((prev) => prev.map((project) => project.id === updated.id ? updated : project));
+      setActiveProjectState(updated);
+      localStorage.setItem('brisabase_active_project_id', updated.id);
+      if (isRealMode) await configureRealProjectScope(updated);
+      showToast('Ambiente alterado', `Ambiente ativo: ${nextEnvironment}`, 'info');
+    } catch (error) {
+      const description = error instanceof Error ? error.message : 'Não foi possível alterar o ambiente.';
+      setRuntimeError(description);
+      showToast('Falha ao alterar ambiente', description, 'error');
+    }
+  };
+
   const createProject = async (project: { name: string; description?: string; region?: string; environment?: 'production' | 'development' | 'staging' }): Promise<Project> => {
     const created = await mockApi.createProject({
       name: project.name,
@@ -289,6 +316,12 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
     });
   };
 
+  const markNotificationAsRead = (notificationId: string) => {
+    setNotifications((prev) => prev.map((notification) =>
+      notification.id === notificationId ? { ...notification, read: true } : notification
+    ));
+  };
+
   const markAllNotificationsRead = async () => {
     await mockApi.markAllNotificationsRead();
     setNotifications((prev) => prev.map((n) => ({ ...n, read: true })));
@@ -327,16 +360,23 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
         activeEnvironmentId: isRealMode ? (localStorage.getItem('brisabase.environmentId') || activeProject?.environmentId || '') : 'env_mock',
         currentProject: activeProject,
         environment: activeProject?.category || 'development',
+        setEnvironment,
         isLoadingProjects: !authReady,
         addToast: showToast,
         notifications,
         unreadNotificationsCount,
+        markNotificationAsRead,
         markAllNotificationsRead,
+        markAllNotificationsAsRead: markAllNotificationsRead,
         toasts,
         showToast,
         removeToast,
         isSearchOpen,
-        setIsSearchOpen
+        setIsSearchOpen,
+        isGlobalSearchOpen: isSearchOpen,
+        setGlobalSearchOpen: setIsSearchOpen,
+        isMobileSidebarOpen,
+        setMobileSidebarOpen
       }}
     >
       {children}
