@@ -15,6 +15,7 @@ const managed: NodeJS.ProcessEnv = {
   COOKIE_SECURE: 'true', COOKIE_HTTP_ONLY: 'true', COOKIE_SAME_SITE: 'lax',
   SMTP_ENABLED: 'false', REALTIME_ENABLED: 'false', FUNCTIONS_ENABLED: 'false', BACKUP_ENABLED: 'false', OBSERVABILITY_ENABLED: 'true', INFRASTRUCTURE_PREVIEW_ENABLED: 'false', ECOSYSTEM_PREVIEW_ENABLED: 'false', API_KEY_HASH_ALGORITHM: 'sha256',
   ALERT_WEBHOOK_ENABLED: 'false', ALERT_WEBHOOK_URL: '', ALERT_WEBHOOK_TOKEN: '',
+  AI_PROVIDER_ALLOWED_HOSTS: 'api.openai.com',
 };
 
 const selfHosted: NodeJS.ProcessEnv = {
