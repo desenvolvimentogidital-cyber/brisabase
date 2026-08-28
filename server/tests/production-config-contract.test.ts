@@ -6,6 +6,7 @@ const digest = `sha256:${'a'.repeat(64)}`;
 const managed: NodeJS.ProcessEnv = {
   ...process.env,
   NODE_ENV: 'production', BRISABASE_DEPLOYMENT_MODE: 'managed', VITE_DATA_SOURCE: 'api', BRISABASE_RELEASE: '2026.8.11',
+  HOSTING_CUSTOM_DOMAINS_ENABLED: 'false',
   APP_URL: 'https://brisabase.onrender.com', API_URL: 'https://brisabase.onrender.com', STORAGE_PUBLIC_URL: 'https://brisabase.onrender.com', CORS_ALLOWED_ORIGINS: 'https://app.contract.invalid,https://admin.contract.invalid',
   DATABASE_URL: 'postgresql://neon_owner:ManagedNeonDb_2026_9qW4eR7tY2uI@ep-silent-rain-a1b2c3d4-pooler.us-east-2.aws.neon.tech/neondb?sslmode=require', DATABASE_MIGRATION_URL: 'postgresql://neon_owner:ManagedNeonDb_2026_9qW4eR7tY2uI@ep-silent-rain-a1b2c3d4.us-east-2.aws.neon.tech/neondb?sslmode=require', DATABASE_SSL: 'true', DATABASE_SSL_REJECT_UNAUTHORIZED: 'true',
   REDIS_URL: 'rediss://:ManagedRedis_2026_8pL3kN6mQ1rS@redis.contract.invalid:6380', REDIS_TLS: 'true',
