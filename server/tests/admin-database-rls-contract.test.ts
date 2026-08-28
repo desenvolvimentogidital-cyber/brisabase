@@ -50,10 +50,11 @@ assert.doesNotMatch(authMiddleware, /billing: \[[^\]]*'admin'/, 'Billing must no
 
 // The row-list route must return the scoped database result directly only for
 // the explicitly authorized Database Editor roles. All other callers still
-// pass through the RLS engine.
+// pass through the RLS engine. Whitespace is intentionally flexible so the
+// contract validates behavior rather than source formatting.
 assert.match(
   databaseRouter,
-  /if \(canReadManagedRows\(req\)\) \{ res\.json\(result\); return; \} const rows = securityEngine\.filterRows/,
+  /if \(canReadManagedRows\(req\)\) \{\s*res\.json\(result\);\s*return;\s*\}\s*const rows = securityEngine\.filterRows/,
   'Database Editor reads must bypass end-user RLS only through canReadManagedRows.',
 );
 
