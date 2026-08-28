@@ -24,20 +24,26 @@ jobs:
           node-version: 22
           cache: npm
 
-      - name: Synchronize audited production configuration
+      - name: Synchronize audited certification corrections
         run: node scripts/final-release-fixes-v2.cjs
 
-      - name: Persist audited production corrections
+      - name: Persist audited certification corrections
         shell: bash
         run: |
-          if [[ -n "$(git status --porcelain -- server/config.ts server/tests/production-config-contract.test.ts)" ]]; then
+          audited_paths=(
+            server/config.ts
+            server/tests/production-config-contract.test.ts
+            server/tests/admin-ui-api-mode-contract.test.ts
+            src/index.css
+          )
+          if [[ -n "$(git status --porcelain -- "${audited_paths[@]}")" ]]; then
             git config user.name "BrisaBase Release Bot"
             git config user.email "noreply@brisabase.local"
-            git add server/config.ts server/tests/production-config-contract.test.ts
-            git commit -m "fix: align production validation and runtime defaults"
+            git add -- "${audited_paths[@]}"
+            git commit -m "fix: persist audited final certification corrections"
             git push origin "HEAD:${GITHUB_REF_NAME}"
           else
-            echo "Production configuration is already synchronized."
+            echo "Audited certification corrections are already synchronized."
           fi
 
       - name: Install locked dependencies
