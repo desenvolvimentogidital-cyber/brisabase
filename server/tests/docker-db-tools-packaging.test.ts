@@ -24,6 +24,17 @@ assert.match(
   'Runtime image must package legacy-compat.cjs beside migrate.cjs.',
 );
 
+assert.match(
+  runtimeStage,
+  /COPY --from=build \/app\/node_modules\/esbuild \.\/node_modules\/esbuild/,
+  'Control-plane runtime must package the lock-resolved esbuild compiler required by the server bundle.',
+);
+assert.match(
+  runtimeStage,
+  /COPY --from=build \/app\/node_modules\/@esbuild \.\/node_modules\/@esbuild/,
+  'Control-plane runtime must package the esbuild platform binary required by the server bundle.',
+);
+
 const functionsDockerfile = readFileSync('Dockerfile.functions', 'utf8');
 const executorSource = readFileSync('server/functions/executorServer.ts', 'utf8');
 assert.match(executorSource, /from 'esbuild'/, 'Functions executor must explicitly declare its runtime compiler usage.');
@@ -38,4 +49,4 @@ assert.match(
   'Functions runtime must package the esbuild platform binary beside the compiler package.',
 );
 
-console.log('Docker DB tools and functions runtime packaging contract passed.');
+console.log('Docker DB tools, control-plane runtime, and functions runtime packaging contract passed.');

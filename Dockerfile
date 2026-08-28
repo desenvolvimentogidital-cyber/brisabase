@@ -22,6 +22,11 @@ ENV NODE_ENV=production
 ENV PORT=3000
 COPY package.json package-lock.json ./
 RUN npm ci --omit=dev && npm cache clean --force
+# The bundled control plane keeps esbuild external because function compilation
+# happens at runtime. Package only the lock-resolved compiler and its platform
+# binary rather than installing every development dependency in production.
+COPY --from=build /app/node_modules/esbuild ./node_modules/esbuild
+COPY --from=build /app/node_modules/@esbuild ./node_modules/@esbuild
 
 # Backup/Restore supports the two production database majors used by BrisaBase:
 # self-hosted PostgreSQL 16 and managed Neon PostgreSQL 18. The public pg_dump /
