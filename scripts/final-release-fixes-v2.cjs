@@ -24,4 +24,11 @@ replaceExact(
   'make production custom domains explicit opt-in'
 );
 
+replaceExact(
+  'server/tests/production-config-contract.test.ts',
+  "assert.deepEqual(services, ['postgres', 'redis', 'minio', 'minio-init', 'brisabase', 'reverse-proxy'], 'Production Compose contains an unexpected runtime or is missing a required service.');",
+  "assert.deepEqual(services, ['postgres', 'redis', 'minio', 'minio-init', 'functions-executor', 'brisabase', 'reverse-proxy'], 'Production Compose contains an unexpected runtime or is missing a required service.');",
+  'recognize the isolated production functions executor'
+);
+
 console.log('Production configuration alignment complete.');
