@@ -131,7 +131,11 @@ export class RealtimeEngine extends EventEmitter {
     if (this.transport) {
       await this.transport.publish(event);
     }
-    void webhookEngine.emit({ organizationId:event.organizationId, projectId:event.projectId, environmentId:event.environmentId }, `database.${event.operation.toLowerCase()}`, { schema:event.schema, table:event.table, new:event.new, old:event.old, transactionId:event.transactionId, requestId:event.requestId }, event.eventId);
+    void webhookEngine.emit({ organizationId:event.organizationId, projectId:event.projectId, environmentId:event.environmentId }, `database.${event.operation.toLowerCase()}`, { schema:event.schema, table:event.table, new:event.new, old:event.old, transactionId:event.transactionId, requestId:event.requestId }, event.eventId).catch((error) => {
+      logger.warn('Realtime webhook fanout failed; CDC delivery continues.', {
+        error: error instanceof Error ? error.message : String(error), eventId: event.eventId,
+      });
+    });
     observability.traces.endSpan(traceSpan);
   }
 
