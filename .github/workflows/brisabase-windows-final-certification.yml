@@ -24,20 +24,20 @@ jobs:
           node-version: 22
           cache: npm
 
-      - name: Synchronize audited release fixture
+      - name: Synchronize audited production configuration
         run: node scripts/final-release-fixes-v2.cjs
 
-      - name: Persist production fixture correction
+      - name: Persist audited production corrections
         shell: bash
         run: |
-          if [[ -n "$(git status --porcelain -- server/tests/production-config-contract.test.ts)" ]]; then
+          if [[ -n "$(git status --porcelain -- server/config.ts server/tests/production-config-contract.test.ts)" ]]; then
             git config user.name "BrisaBase Release Bot"
             git config user.email "noreply@brisabase.local"
-            git add server/tests/production-config-contract.test.ts
-            git commit -m "test: include AI provider allowlist in production fixture"
+            git add server/config.ts server/tests/production-config-contract.test.ts
+            git commit -m "fix: align production validation and runtime defaults"
             git push origin "HEAD:${GITHUB_REF_NAME}"
           else
-            echo "Production fixture is already synchronized."
+            echo "Production configuration is already synchronized."
           fi
 
       - name: Install locked dependencies
