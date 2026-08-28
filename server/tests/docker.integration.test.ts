@@ -114,9 +114,9 @@ async function run(): Promise<void> {
   assert.ok(signupA.session?.access_token && signupB.session?.access_token, 'development seed must allow verified local signup');
   const loginA = await login(userAEmail, password);
   const loginB = await login(userBEmail, password);
-  const accessA = loginA.session.access_token as string;
+  let accessA = loginA.session.access_token as string;
   const accessB = loginB.session.access_token as string;
-  const sdkA = new BrisaBaseClient({ url: apiUrl, projectId, environmentId, accessToken: accessA });
+  let sdkA = new BrisaBaseClient({ url: apiUrl, projectId, environmentId, accessToken: accessA });
   const sdkService = new BrisaBaseClient({ url: apiUrl, projectId, environmentId, apiKey: serviceKey });
   const sdkAdmin = new BrisaBaseClient({ url: apiUrl, projectId, environmentId, accessToken: adminLogin.access_token });
   const userA = await expectStatus(await request('/api/auth/user', { headers: { authorization: `Bearer ${accessA}` } }), 200, 'get signed-in user');
@@ -126,6 +126,12 @@ async function run(): Promise<void> {
   const rotated = await jsonRequest('/api/auth/refresh', 'POST', { refresh_token: firstRefresh }, { 'content-type': 'application/json' });
   assert.notEqual(rotated.refresh_token, firstRefresh, 'refresh token must rotate');
   await expectStatus(await request('/api/auth/refresh', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ refresh_token: firstRefresh }) }), 401, 'reused refresh token must be rejected');
+  await expectStatus(await request('/api/auth/user', { headers: { authorization: `Bearer ${rotated.access_token}` } }), 401, 'refresh replay must revoke the rotated session family');
+  const recoveredLoginA = await login(userAEmail, password);
+  accessA = recoveredLoginA.session.access_token as string;
+  sdkA = new BrisaBaseClient({ url: apiUrl, projectId, environmentId, accessToken: accessA });
+  const userAAfterReplay = await expectStatus(await request('/api/auth/user', { headers: { authorization: `Bearer ${accessA}` } }), 200, 'new login after replay revocation');
+  assert.equal(userAAfterReplay.email, userAEmail);
 
   // DATABASE: schemas, tables, rows, relationship, index, migration, SQL,
   // PostgreSQL function and trigger all execute through the real data plane.
@@ -306,8 +312,8 @@ async function run(): Promise<void> {
   assert.equal(observed.headers.get('x-request-id'), `req_${runId}`);
 
   // Logout revokes the backing PostgreSQL session and closes the access path.
-  await expectStatus(await request('/api/auth/logout', { method: 'POST', headers: { authorization: `Bearer ${rotated.access_token}` } }), 200, 'logout');
-  await expectStatus(await request('/api/auth/user', { headers: { authorization: `Bearer ${rotated.access_token}` } }), 401, 'revoked session must reject get user');
+  await expectStatus(await request('/api/auth/logout', { method: 'POST', headers: { authorization: `Bearer ${accessA}` } }), 200, 'logout');
+  await expectStatus(await request('/api/auth/user', { headers: { authorization: `Bearer ${accessA}` } }), 401, 'revoked session must reject get user');
 
   console.log('Docker integration passed: real PostgreSQL, Redis, MinIO, Mailpit, Auth, Database, REST, RLS, WebSocket Realtime, Storage and request IDs.');
 }
