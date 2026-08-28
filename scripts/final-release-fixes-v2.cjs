@@ -52,4 +52,11 @@ replaceExact(
   'audit canonical migrated API service implementation'
 );
 
-console.log('Production and admin API-mode contract alignment complete.');
+replaceExact(
+  'src/index.css',
+  ".bb-panel {\n  border: 1px solid rgba(71, 145, 255, .18);\n  background: linear-gradient(145deg, rgba(8, 21, 43, .95), rgba(3, 11, 28, .95));\n  box-shadow: inset 0 1px 0 rgba(255,255,255,.025), 0 20px 46px -38px rgba(0,0,0,.95);\n}",
+  ".bb-panel {\n  border: 1px solid rgba(71, 145, 255, .18);\n  background: linear-gradient(145deg, rgba(8, 21, 43, .95), rgba(3, 11, 28, .95));\n  box-shadow: inset 0 1px 0 rgba(255,255,255,.025), 0 20px 46px -38px rgba(0,0,0,.95);\n}\n\n/* Migrated control-plane purple utilities are state accents; keep labels readable. */\n[class*=\"text-purple-\"] {\n  color: #ffffff !important;\n}",
+  'keep purple-state labels white in dark admin UI'
+);
+
+console.log('Production, admin API-mode, and compatibility-style alignment complete.');
