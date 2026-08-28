@@ -422,8 +422,8 @@ export class DatabasePhase2Engine {
     const current = await this.snapshot(scope);
     const changes: Array<{ kind: string; object: string; detail: string }> = [];
     const migrationSql: string[] = [];
-    const oldTables = new Map(baseline.tables.map((table: any) => [String(table.name), table]));
-    const newTables = new Map(current.tables.map((table: any) => [String(table.name), table]));
+    const oldTables = new Map<string, any>(baseline.tables.map((table: any) => [String(table.name), table] as [string, any]));
+    const newTables = new Map<string, any>(current.tables.map((table: any) => [String(table.name), table] as [string, any]));
     for (const [name, table] of newTables) {
       if (!oldTables.has(name)) {
         changes.push({ kind: 'table.added', object: name, detail: 'Table exists in current schema but not in the baseline.' });
@@ -434,7 +434,7 @@ export class DatabasePhase2Engine {
         continue;
       }
       const before: any = oldTables.get(name);
-      const beforeColumns = new Map((before.columns || []).map((column: any) => [String(column.name), column]));
+      const beforeColumns = new Map<string, any>((before.columns || []).map((column: any) => [String(column.name), column] as [string, any]));
       for (const column of (table as any).columns as ColumnDef[]) {
         const old: any = beforeColumns.get(column.name);
         if (!old) {

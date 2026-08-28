@@ -29,7 +29,7 @@ export const Header: React.FC<HeaderProps> = ({ onOpenNotifications }) => {
     notifications,
     selectProject,
     setEnvironment,
-    setGlobalSearchOpen,
+    setIsSearchOpen,
     setMobileSidebarOpen
   } = useApp();
 
@@ -99,7 +99,7 @@ export const Header: React.FC<HeaderProps> = ({ onOpenNotifications }) => {
           <input
             type="text"
             readOnly
-            onClick={() => setGlobalSearchOpen(true)}
+            onClick={() => setIsSearchOpen(true)}
             placeholder="Buscar projetos, serviços e logs..."
             className="bg-white/[0.035] border border-white/[0.1] text-xs text-slate-300 placeholder-slate-500 px-3 py-2 rounded-xl w-48 md:w-72 cursor-pointer focus:outline-none focus:ring-1 focus:ring-fuchsia-400"
           />

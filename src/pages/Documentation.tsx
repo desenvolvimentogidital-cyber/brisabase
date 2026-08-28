@@ -105,7 +105,7 @@ export const Documentation: React.FC = () => {
               <Button
                 variant="outline"
                 size="sm"
-                icon={<Copy className="w-3.5 h-3.5" />}
+                leftIcon={<Copy className="w-3.5 h-3.5" />}
                 onClick={() => {
                   navigator.clipboard.writeText(activeDoc.content);
                   showToast('Copiado!', 'Documentação copiada para a área de transferência', 'success');

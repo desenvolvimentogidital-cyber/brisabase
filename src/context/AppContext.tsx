@@ -1,5 +1,6 @@
 import React, { createContext, useContext, useState, useEffect, ReactNode, useCallback } from 'react';
 import { Project, NotificationItem, AuthUser } from '../types';
+import type { Environment } from '../brisabase/types';
 import { mockApi } from '../services/mockApi';
 import {
   adminAuthService,
@@ -41,17 +42,21 @@ interface AppContextType {
   activeProjectId: string | null;
   activeEnvironmentId: string;
   currentProject: Project | null;
-  environment: string;
+  environment: Environment;
+  setEnvironment: (environment: Environment) => void;
   isLoadingProjects: boolean;
   addToast: (title: string, description?: string, type?: 'success' | 'info' | 'warning' | 'error') => void;
   notifications: NotificationItem[];
   unreadNotificationsCount: number;
+  markNotificationRead: (notificationId: string) => void;
   markAllNotificationsRead: () => void;
   toasts: ToastItem[];
   showToast: (title: string, description?: string, type?: 'success' | 'info' | 'warning' | 'error') => void;
   removeToast: (id: string) => void;
   isSearchOpen: boolean;
   setIsSearchOpen: (open: boolean) => void;
+  isMobileSidebarOpen: boolean;
+  setMobileSidebarOpen: (open: boolean) => void;
 }
 
 const defaultUser: AuthUser = {
@@ -108,6 +113,7 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
   const [notifications, setNotifications] = useState<NotificationItem[]>([]);
   const [toasts, setToasts] = useState<ToastItem[]>([]);
   const [isSearchOpen, setIsSearchOpen] = useState<boolean>(false);
+  const [isMobileSidebarOpen, setMobileSidebarOpen] = useState<boolean>(false);
 
   const showToast = useCallback((
     title: string,
@@ -289,6 +295,41 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
     });
   };
 
+  const setEnvironment = useCallback((nextEnvironment: Environment) => {
+    if (!activeProject) return;
+
+    if (isRealMode) {
+      void realProjectService.listEnvironments(activeProject.id).then((environments) => {
+        const selected = environments.find((item) => item.type === nextEnvironment);
+        if (!selected) throw new Error(`O ambiente ${nextEnvironment} não existe neste projeto.`);
+        localStorage.setItem('brisabase.environmentId', selected.id);
+        localStorage.setItem(`brisabase_environment_id:${activeProject.id}`, selected.id);
+        setActiveProjectState((current) => current ? {
+          ...current,
+          environmentId: selected.id,
+          category: selected.type,
+          environment: selected.type,
+        } : current);
+      }).catch((error) => {
+        showToast('Falha ao trocar ambiente', error instanceof Error ? error.message : undefined, 'error');
+      });
+      return;
+    }
+
+    setActiveProjectState((current) => current ? {
+      ...current,
+      category: nextEnvironment,
+      environment: nextEnvironment,
+    } : current);
+  }, [activeProject, showToast]);
+
+  const markNotificationRead = (notificationId: string) => {
+    void mockApi.markNotificationRead(notificationId);
+    setNotifications((prev) => prev.map((notification) => (
+      notification.id === notificationId ? { ...notification, read: true } : notification
+    )));
+  };
+
   const markAllNotificationsRead = async () => {
     await mockApi.markAllNotificationsRead();
     setNotifications((prev) => prev.map((n) => ({ ...n, read: true })));
@@ -327,16 +368,20 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
         activeEnvironmentId: isRealMode ? (localStorage.getItem('brisabase.environmentId') || activeProject?.environmentId || '') : 'env_mock',
         currentProject: activeProject,
         environment: activeProject?.category || 'development',
+        setEnvironment,
         isLoadingProjects: !authReady,
         addToast: showToast,
         notifications,
         unreadNotificationsCount,
+        markNotificationRead,
         markAllNotificationsRead,
         toasts,
         showToast,
         removeToast,
         isSearchOpen,
-        setIsSearchOpen
+        setIsSearchOpen,
+        isMobileSidebarOpen,
+        setMobileSidebarOpen
       }}
     >
       {children}

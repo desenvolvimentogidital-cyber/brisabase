@@ -479,6 +479,12 @@ export const mockApi = {
     return getStored<NotificationItem[]>(STORAGE_KEYS.NOTIFICATIONS, initialNotifications);
   },
 
+  async markNotificationRead(notificationId: string): Promise<void> {
+    const notifs = getStored<NotificationItem[]>(STORAGE_KEYS.NOTIFICATIONS, initialNotifications);
+    const updated = notifs.map((notification) => notification.id === notificationId ? { ...notification, read: true } : notification);
+    setStored(STORAGE_KEYS.NOTIFICATIONS, updated);
+  },
+
   async markAllNotificationsRead(): Promise<void> {
     const notifs = getStored<NotificationItem[]>(STORAGE_KEYS.NOTIFICATIONS, initialNotifications);
     const updated = notifs.map((n) => ({ ...n, read: true }));

@@ -8,7 +8,7 @@ interface NotificationDrawerProps {
 }
 
 export const NotificationDrawer: React.FC<NotificationDrawerProps> = ({ isOpen, onClose }) => {
-  const { notifications, markNotificationAsRead, markAllNotificationsAsRead } = useApp();
+  const { notifications, markNotificationRead, markAllNotificationsRead } = useApp();
 
   if (!isOpen) return null;
 
@@ -30,7 +30,7 @@ export const NotificationDrawer: React.FC<NotificationDrawerProps> = ({ isOpen, 
             </div>
             <div className="flex items-center gap-2">
               <button
-                onClick={markAllNotificationsAsRead}
+                onClick={markAllNotificationsRead}
                 className="flex items-center gap-1 text-xs text-purple-400 hover:text-purple-300 transition-colors p-1 rounded"
                 title="Marcar todas como lidas"
               >
@@ -61,7 +61,7 @@ export const NotificationDrawer: React.FC<NotificationDrawerProps> = ({ isOpen, 
                 return (
                   <div
                     key={notif.id}
-                    onClick={() => markNotificationAsRead(notif.id)}
+                    onClick={() => markNotificationRead(notif.id)}
                     className={`p-4 rounded-xl border transition-all cursor-pointer ${
                       notif.read
                         ? 'bg-slate-900/30 border-slate-800/80 text-slate-400'

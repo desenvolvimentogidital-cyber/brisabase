@@ -14,11 +14,11 @@ import {
 } from 'lucide-react';
 
 export const GlobalSearchModal: React.FC = () => {
-  const { isGlobalSearchOpen, setGlobalSearchOpen, projects, currentProject } = useApp();
+  const { isSearchOpen, setIsSearchOpen, projects, currentProject } = useApp();
   const [query, setQuery] = useState('');
   const navigate = useNavigate();
 
-  if (!isGlobalSearchOpen) return null;
+  if (!isSearchOpen) return null;
 
   const projectId = currentProject?.id || 'proj_ecommerce_1';
 
@@ -52,7 +52,7 @@ export const GlobalSearchModal: React.FC = () => {
     : searchableItems;
 
   const handleSelect = (path: string) => {
-    setGlobalSearchOpen(false);
+    setIsSearchOpen(false);
     setQuery('');
     navigate(path);
   };
@@ -62,7 +62,7 @@ export const GlobalSearchModal: React.FC = () => {
       {/* Backdrop */}
       <div
         className="fixed inset-0 bg-slate-950/80 backdrop-blur-md transition-opacity"
-        onClick={() => setGlobalSearchOpen(false)}
+        onClick={() => setIsSearchOpen(false)}
       />
 
       <div className="relative w-full max-w-2xl rounded-2xl border border-slate-800 bg-slate-900/95 shadow-2xl overflow-hidden backdrop-blur-2xl z-50">
@@ -78,7 +78,7 @@ export const GlobalSearchModal: React.FC = () => {
             autoFocus
           />
           <button
-            onClick={() => setGlobalSearchOpen(false)}
+            onClick={() => setIsSearchOpen(false)}
             className="rounded-lg p-1 text-slate-400 hover:bg-slate-800 hover:text-slate-200"
           >
             <X className="h-4 w-4" />
