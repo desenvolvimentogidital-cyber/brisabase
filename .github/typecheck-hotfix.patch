@@ -1,0 +1,256 @@
+--- a/tsconfig.json
++++ b/tsconfig.json
+@@ -18,6 +18,9 @@
+     "paths": {
+       "@/*": [
+         "./*"
++      ],
++      "@brisabase/sdk": [
++        "./src/sdk/brisaBaseClient.ts"
+       ]
+     },
+     "allowImportingTsExtensions": true,
+--- a/server/db/databasePhase2.ts
++++ b/server/db/databasePhase2.ts
+@@ -422,8 +422,8 @@
+     const current = await this.snapshot(scope);
+     const changes: Array<{ kind: string; object: string; detail: string }> = [];
+     const migrationSql: string[] = [];
+-    const oldTables = new Map(baseline.tables.map((table: any) => [String(table.name), table]));
+-    const newTables = new Map(current.tables.map((table: any) => [String(table.name), table]));
++    const oldTables = new Map<string, any>(baseline.tables.map((table: any) => [String(table.name), table] as [string, any]));
++    const newTables = new Map<string, any>(current.tables.map((table: any) => [String(table.name), table] as [string, any]));
+     for (const [name, table] of newTables) {
+       if (!oldTables.has(name)) {
+         changes.push({ kind: 'table.added', object: name, detail: 'Table exists in current schema but not in the baseline.' });
+@@ -434,7 +434,7 @@
+         continue;
+       }
+       const before: any = oldTables.get(name);
+-      const beforeColumns = new Map((before.columns || []).map((column: any) => [String(column.name), column]));
++      const beforeColumns = new Map<string, any>((before.columns || []).map((column: any) => [String(column.name), column] as [string, any]));
+       for (const column of (table as any).columns as ColumnDef[]) {
+         const old: any = beforeColumns.get(column.name);
+         if (!old) {
+--- a/src/context/AppContext.tsx
++++ b/src/context/AppContext.tsx
+@@ -1,5 +1,6 @@
+ import React, { createContext, useContext, useState, useEffect, ReactNode, useCallback } from 'react';
+ import { Project, NotificationItem, AuthUser } from '../types';
++import type { Environment } from '../brisabase/types';
+ import { mockApi } from '../services/mockApi';
+ import {
+   adminAuthService,
+@@ -41,17 +42,21 @@
+   activeProjectId: string | null;
+   activeEnvironmentId: string;
+   currentProject: Project | null;
+-  environment: string;
++  environment: Environment;
++  setEnvironment: (environment: Environment) => void;
+   isLoadingProjects: boolean;
+   addToast: (title: string, description?: string, type?: 'success' | 'info' | 'warning' | 'error') => void;
+   notifications: NotificationItem[];
+   unreadNotificationsCount: number;
++  markNotificationRead: (notificationId: string) => void;
+   markAllNotificationsRead: () => void;
+   toasts: ToastItem[];
+   showToast: (title: string, description?: string, type?: 'success' | 'info' | 'warning' | 'error') => void;
+   removeToast: (id: string) => void;
+   isSearchOpen: boolean;
+   setIsSearchOpen: (open: boolean) => void;
++  isMobileSidebarOpen: boolean;
++  setMobileSidebarOpen: (open: boolean) => void;
+ }
+ 
+ const defaultUser: AuthUser = {
+@@ -108,6 +113,7 @@
+   const [notifications, setNotifications] = useState<NotificationItem[]>([]);
+   const [toasts, setToasts] = useState<ToastItem[]>([]);
+   const [isSearchOpen, setIsSearchOpen] = useState<boolean>(false);
++  const [isMobileSidebarOpen, setMobileSidebarOpen] = useState<boolean>(false);
+ 
+   const showToast = useCallback((
+     title: string,
+@@ -287,6 +293,41 @@
+       localStorage.setItem('brisabase_sidebar_collapsed', String(next));
+       return next;
+     });
++  };
++
++  const setEnvironment = useCallback((nextEnvironment: Environment) => {
++    if (!activeProject) return;
++
++    if (isRealMode) {
++      void realProjectService.listEnvironments(activeProject.id).then((environments) => {
++        const selected = environments.find((item) => item.type === nextEnvironment);
++        if (!selected) throw new Error(`O ambiente ${nextEnvironment} não existe neste projeto.`);
++        localStorage.setItem('brisabase.environmentId', selected.id);
++        localStorage.setItem(`brisabase_environment_id:${activeProject.id}`, selected.id);
++        setActiveProjectState((current) => current ? {
++          ...current,
++          environmentId: selected.id,
++          category: selected.type,
++          environment: selected.type,
++        } : current);
++      }).catch((error) => {
++        showToast('Falha ao trocar ambiente', error instanceof Error ? error.message : undefined, 'error');
++      });
++      return;
++    }
++
++    setActiveProjectState((current) => current ? {
++      ...current,
++      category: nextEnvironment,
++      environment: nextEnvironment,
++    } : current);
++  }, [activeProject, showToast]);
++
++  const markNotificationRead = (notificationId: string) => {
++    void mockApi.markNotificationRead(notificationId);
++    setNotifications((prev) => prev.map((notification) => (
++      notification.id === notificationId ? { ...notification, read: true } : notification
++    )));
+   };
+ 
+   const markAllNotificationsRead = async () => {
+@@ -327,16 +368,20 @@
+         activeEnvironmentId: isRealMode ? (localStorage.getItem('brisabase.environmentId') || activeProject?.environmentId || '') : 'env_mock',
+         currentProject: activeProject,
+         environment: activeProject?.category || 'development',
++        setEnvironment,
+         isLoadingProjects: !authReady,
+         addToast: showToast,
+         notifications,
+         unreadNotificationsCount,
++        markNotificationRead,
+         markAllNotificationsRead,
+         toasts,
+         showToast,
+         removeToast,
+         isSearchOpen,
+-        setIsSearchOpen
++        setIsSearchOpen,
++        isMobileSidebarOpen,
++        setMobileSidebarOpen
+       }}
+     >
+       {children}
+--- a/src/services/mockApi.ts
++++ b/src/services/mockApi.ts
+@@ -479,6 +479,12 @@
+     return getStored<NotificationItem[]>(STORAGE_KEYS.NOTIFICATIONS, initialNotifications);
+   },
+ 
++  async markNotificationRead(notificationId: string): Promise<void> {
++    const notifs = getStored<NotificationItem[]>(STORAGE_KEYS.NOTIFICATIONS, initialNotifications);
++    const updated = notifs.map((notification) => notification.id === notificationId ? { ...notification, read: true } : notification);
++    setStored(STORAGE_KEYS.NOTIFICATIONS, updated);
++  },
++
+   async markAllNotificationsRead(): Promise<void> {
+     const notifs = getStored<NotificationItem[]>(STORAGE_KEYS.NOTIFICATIONS, initialNotifications);
+     const updated = notifs.map((n) => ({ ...n, read: true }));
+--- a/src/brisabase/components/layout/GlobalSearchModal.tsx
++++ b/src/brisabase/components/layout/GlobalSearchModal.tsx
+@@ -14,11 +14,11 @@
+ } from 'lucide-react';
+ 
+ export const GlobalSearchModal: React.FC = () => {
+-  const { isGlobalSearchOpen, setGlobalSearchOpen, projects, currentProject } = useApp();
++  const { isSearchOpen, setIsSearchOpen, projects, currentProject } = useApp();
+   const [query, setQuery] = useState('');
+   const navigate = useNavigate();
+ 
+-  if (!isGlobalSearchOpen) return null;
++  if (!isSearchOpen) return null;
+ 
+   const projectId = currentProject?.id || 'proj_ecommerce_1';
+ 
+@@ -52,7 +52,7 @@
+     : searchableItems;
+ 
+   const handleSelect = (path: string) => {
+-    setGlobalSearchOpen(false);
++    setIsSearchOpen(false);
+     setQuery('');
+     navigate(path);
+   };
+@@ -62,7 +62,7 @@
+       {/* Backdrop */}
+       <div
+         className="fixed inset-0 bg-slate-950/80 backdrop-blur-md transition-opacity"
+-        onClick={() => setGlobalSearchOpen(false)}
++        onClick={() => setIsSearchOpen(false)}
+       />
+ 
+       <div className="relative w-full max-w-2xl rounded-2xl border border-slate-800 bg-slate-900/95 shadow-2xl overflow-hidden backdrop-blur-2xl z-50">
+@@ -78,7 +78,7 @@
+             autoFocus
+           />
+           <button
+-            onClick={() => setGlobalSearchOpen(false)}
++            onClick={() => setIsSearchOpen(false)}
+             className="rounded-lg p-1 text-slate-400 hover:bg-slate-800 hover:text-slate-200"
+           >
+             <X className="h-4 w-4" />
+--- a/src/brisabase/components/layout/Header.tsx
++++ b/src/brisabase/components/layout/Header.tsx
+@@ -29,7 +29,7 @@
+     notifications,
+     selectProject,
+     setEnvironment,
+-    setGlobalSearchOpen,
++    setIsSearchOpen,
+     setMobileSidebarOpen
+   } = useApp();
+ 
+@@ -99,7 +99,7 @@
+           <input
+             type="text"
+             readOnly
+-            onClick={() => setGlobalSearchOpen(true)}
++            onClick={() => setIsSearchOpen(true)}
+             placeholder="Buscar projetos, serviços e logs..."
+             className="bg-white/[0.035] border border-white/[0.1] text-xs text-slate-300 placeholder-slate-500 px-3 py-2 rounded-xl w-48 md:w-72 cursor-pointer focus:outline-none focus:ring-1 focus:ring-fuchsia-400"
+           />
+--- a/src/brisabase/components/layout/NotificationDrawer.tsx
++++ b/src/brisabase/components/layout/NotificationDrawer.tsx
+@@ -8,7 +8,7 @@
+ }
+ 
+ export const NotificationDrawer: React.FC<NotificationDrawerProps> = ({ isOpen, onClose }) => {
+-  const { notifications, markNotificationAsRead, markAllNotificationsAsRead } = useApp();
++  const { notifications, markNotificationRead, markAllNotificationsRead } = useApp();
+ 
+   if (!isOpen) return null;
+ 
+@@ -30,7 +30,7 @@
+             </div>
+             <div className="flex items-center gap-2">
+               <button
+-                onClick={markAllNotificationsAsRead}
++                onClick={markAllNotificationsRead}
+                 className="flex items-center gap-1 text-xs text-purple-400 hover:text-purple-300 transition-colors p-1 rounded"
+                 title="Marcar todas como lidas"
+               >
+@@ -61,7 +61,7 @@
+                 return (
+                   <div
+                     key={notif.id}
+-                    onClick={() => markNotificationAsRead(notif.id)}
++                    onClick={() => markNotificationRead(notif.id)}
+                     className={`p-4 rounded-xl border transition-all cursor-pointer ${
+                       notif.read
+                         ? 'bg-slate-900/30 border-slate-800/80 text-slate-400'
+--- a/src/pages/Documentation.tsx
++++ b/src/pages/Documentation.tsx
+@@ -105,7 +105,7 @@
+               <Button
+                 variant="outline"
+                 size="sm"
+-                icon={<Copy className="w-3.5 h-3.5" />}
++                leftIcon={<Copy className="w-3.5 h-3.5" />}
+                 onClick={() => {
+                   navigator.clipboard.writeText(activeDoc.content);
+                   showToast('Copiado!', 'Documentação copiada para a área de transferência', 'success');
