@@ -23,7 +23,7 @@ const evidence = JSON.stringify({
   purpose: 'Authorize the isolated destructive restore certification exercise.',
 });
 const sqlLiteral = (value) => String(value).replace(/'/g, "''");
-const sql = `INSERT INTO backup_recovery_drills(id,provider,status,started_at,completed_at,duration_ms,target_schema,evidence) VALUES('${sqlLiteral(drillId)}','local','passed',now(),now(),0,'release_gate_disposable','${sqlLiteral(evidence)}'::jsonb);`;
+const sql = `INSERT INTO backup_recovery_drills(id,provider,status,evidence,started_at,completed_at,created_by) VALUES('${sqlLiteral(drillId)}','local','passed','${sqlLiteral(evidence)}'::jsonb,now(),now(),'docker-release-gate');`;
 
 execFileSync('docker', [
   'compose',
