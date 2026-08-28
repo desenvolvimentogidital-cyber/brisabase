@@ -1,0 +1,85 @@
+name: BrisaBase Windows Final Certification
+
+on:
+  push:
+    branches:
+      - fix/final-release-gates
+
+permissions:
+  contents: write
+
+jobs:
+  certify:
+    runs-on: [self-hosted, Windows, X64]
+    timeout-minutes: 180
+
+    steps:
+      - name: Checkout certification branch
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Configure Node.js 22
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      - name: Runner diagnostics
+        shell: pwsh
+        run: |
+          Write-Host "Runner: $env:RUNNER_NAME"
+          Write-Host "OS: $env:RUNNER_OS"
+          Write-Host "Architecture: $env:RUNNER_ARCH"
+          node --version
+          npm --version
+          git --version
+          if (Get-Command docker -ErrorAction SilentlyContinue) {
+            docker --version
+          } else {
+            Write-Host "Docker CLI not found yet; Docker gate will report the requirement explicitly."
+          }
+
+      - name: Install locked dependencies
+        run: npm ci
+
+      - name: Apply audited release fixes
+        run: node scripts/final-release-fixes.cjs
+
+      - name: TypeScript gate
+        run: npm run typecheck
+
+      - name: Persist validated source fixes
+        shell: pwsh
+        run: |
+          $changes = git status --porcelain
+          if ($changes) {
+            git config user.name "BrisaBase Release Bot"
+            git config user.email "noreply@brisabase.local"
+            git add server/db/databasePhase2.ts src/context/AppContext.tsx src/components/ui/Button.tsx examples/real-app/src/App.tsx examples/real-app/package.json tsconfig.json
+            git commit -m "fix: clear final TypeScript release gates"
+            git push origin "HEAD:$env:GITHUB_REF_NAME"
+          } else {
+            Write-Host "No source changes to persist."
+          }
+
+      - name: Phase 8 verification chain
+        run: npm run phase8:verify
+
+      - name: CI security, tests and build
+        run: npm run test:ci
+
+      - name: Install Playwright Chromium
+        run: npx playwright install chromium
+
+      - name: Browser regression gate
+        run: npm run test:browser
+
+      - name: Docker availability
+        shell: pwsh
+        run: |
+          docker version
+          docker info
+
+      - name: Docker release certification
+        run: npm run release:validate:docker
