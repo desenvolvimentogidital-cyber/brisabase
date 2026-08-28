@@ -34,8 +34,15 @@ replaceExact(
 replaceExact(
   'tsconfig.json',
   '    "paths": {\n      "@/*": [\n        "./*"\n      ],\n      "@brisabase/js": [\n        "./developer/sdk/index.ts"\n      ]\n    },',
-  '    "paths": {\n      "@/*": [\n        "./*"\n      ],\n      "@brisabase/sdk": [\n        "./src/sdk/brisaBaseClient.ts"\n      ]\n    },',
+  '    "paths": {\n      "@/*": [\n        "./*"\n      ],\n      "@brisabase/sdk": [\n        "./src/sdk/brisaBaseClient.ts\"\n      ]\n    },',
   'resolve real-app SDK alias to full in-repo client'
 );
 
-console.log('Final release SDK alignment complete.');
+replaceExact(
+  'server/tests/production-config-contract.test.ts',
+  "  ALERT_WEBHOOK_ENABLED: 'false', ALERT_WEBHOOK_URL: '', ALERT_WEBHOOK_TOKEN: '',\n};",
+  "  ALERT_WEBHOOK_ENABLED: 'false', ALERT_WEBHOOK_URL: '', ALERT_WEBHOOK_TOKEN: '',\n  AI_PROVIDER_ALLOWED_HOSTS: 'api.openai.com',\n};",
+  'include required AI provider allowlist in production fixture'
+);
+
+console.log('Final release SDK and production fixture alignment complete.');
