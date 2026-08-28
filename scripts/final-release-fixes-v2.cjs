@@ -59,4 +59,25 @@ replaceExact(
   'keep purple-state labels white in dark admin UI'
 );
 
-console.log('Production, admin API-mode, and compatibility-style alignment complete.');
+replaceExact(
+  'server/tests/docker.integration.test.ts',
+  "  const accessA = loginA.session.access_token as string;\n  const accessB = loginB.session.access_token as string;\n  const sdkA = new BrisaBaseClient({ url: apiUrl, projectId, environmentId, accessToken: accessA });",
+  "  let accessA = loginA.session.access_token as string;\n  const accessB = loginB.session.access_token as string;\n  let sdkA = new BrisaBaseClient({ url: apiUrl, projectId, environmentId, accessToken: accessA });",
+  'allow user A to recover with a fresh session after replay revocation'
+);
+
+replaceExact(
+  'server/tests/docker.integration.test.ts',
+  "  await expectStatus(await request('/api/auth/refresh', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ refresh_token: firstRefresh }) }), 401, 'reused refresh token must be rejected');",
+  "  await expectStatus(await request('/api/auth/refresh', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ refresh_token: firstRefresh }) }), 401, 'reused refresh token must be rejected');\n  await expectStatus(await request('/api/auth/user', { headers: { authorization: `Bearer ${rotated.access_token}` } }), 401, 'refresh replay must revoke the rotated session family');\n  const recoveredLoginA = await login(userAEmail, password);\n  accessA = recoveredLoginA.session.access_token as string;\n  sdkA = new BrisaBaseClient({ url: apiUrl, projectId, environmentId, accessToken: accessA });\n  const userAAfterReplay = await expectStatus(await request('/api/auth/user', { headers: { authorization: `Bearer ${accessA}` } }), 200, 'new login after replay revocation');\n  assert.equal(userAAfterReplay.email, userAEmail);",
+  'prove replay family revocation and establish a new independent session'
+);
+
+replaceExact(
+  'server/tests/docker.integration.test.ts',
+  "  await expectStatus(await request('/api/auth/logout', { method: 'POST', headers: { authorization: `Bearer ${rotated.access_token}` } }), 200, 'logout');\n  await expectStatus(await request('/api/auth/user', { headers: { authorization: `Bearer ${rotated.access_token}` } }), 401, 'revoked session must reject get user');",
+  "  await expectStatus(await request('/api/auth/logout', { method: 'POST', headers: { authorization: `Bearer ${accessA}` } }), 200, 'logout');\n  await expectStatus(await request('/api/auth/user', { headers: { authorization: `Bearer ${accessA}` } }), 401, 'revoked session must reject get user');",
+  'logout and verify the active post-replay session'
+);
+
+console.log('Production, admin API-mode, compatibility-style, and Docker auth-session alignment complete.');

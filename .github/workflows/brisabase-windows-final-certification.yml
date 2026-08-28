@@ -34,6 +34,7 @@ jobs:
             server/config.ts
             server/tests/production-config-contract.test.ts
             server/tests/admin-ui-api-mode-contract.test.ts
+            server/tests/docker.integration.test.ts
             src/index.css
           )
           if [[ -n "$(git status --porcelain -- "${audited_paths[@]}")" ]]; then
