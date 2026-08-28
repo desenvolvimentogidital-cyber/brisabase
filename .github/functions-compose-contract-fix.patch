@@ -1,6 +1,6 @@
 --- a/server/tests/production-config-contract.test.ts
 +++ b/server/tests/production-config-contract.test.ts
-@@ -111,7 +111,7 @@
+@@ -111,5 +111,5 @@
  const compose = readFileSync('docker-compose.production.yml', 'utf8');
  const serviceBlock = compose.slice(compose.indexOf('services:'), compose.indexOf('\nnetworks:'));
  const services = [...serviceBlock.matchAll(/^  ([a-z][a-z0-9-]*):$/gm)].map((match) => match[1]);
