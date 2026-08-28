@@ -17,4 +17,11 @@ replaceExact(
   'include required AI provider allowlist in production fixture'
 );
 
-console.log('Production fixture alignment complete.');
+replaceExact(
+  'server/config.ts',
+  "    customDomainsEnabled: bool(process.env.HOSTING_CUSTOM_DOMAINS_ENABLED, production),",
+  "    customDomainsEnabled: bool(process.env.HOSTING_CUSTOM_DOMAINS_ENABLED, false),",
+  'make production custom domains explicit opt-in'
+);
+
+console.log('Production configuration alignment complete.');
