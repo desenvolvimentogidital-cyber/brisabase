@@ -83,6 +83,9 @@ export BRISABASE_PUBLIC_URL="$LOCAL_API_URL"
 export BRISABASE_REALTIME_PUBLIC_URL="ws://127.0.0.1:$LOCAL_API_PORT/realtime/v1/websocket"
 export ADMIN_UI_URL="$LOCAL_API_URL"
 export BRISABASE_API_URL="$LOCAL_API_URL"
+# Explicit opt-in only for this disposable local release stack. The Compose
+# file defaults BACKUP_RESTORE_CERTIFIED to false outside this gate.
+export BRISABASE_BACKUP_RESTORE_CERTIFIED=true
 
 printf '\n[1/8] Instalação limpa e gates sem containers\n'
 npm ci
@@ -112,6 +115,7 @@ ADMIN_BOOTSTRAP_TOKEN=local-bootstrap-token-for-isolated-e2e-only-2026 \
 npm run test:docker:load
 
 printf '\n[4/8] Restore destrutivo e persistência após restart\n'
+COMPOSE_PROJECT_NAME="$LOCAL_PROJECT" node scripts/prepare-local-recovery-certification.cjs
 BRISABASE_RESTORE_DRILL=true \
 ADMIN_BOOTSTRAP_TOKEN=local-bootstrap-token-for-isolated-e2e-only-2026 \
 npm run test:docker:restore
@@ -127,7 +131,7 @@ npx playwright test e2e/admin-ui-smoke.spec.ts --project=desktop
 
 "${LOCAL_COMPOSE[@]}" down --volumes --remove-orphans
 LOCAL_STARTED=false
-unset BRISABASE_REAL_E2E BRISABASE_LOAD_SMOKE BRISABASE_RESTORE_DRILL BRISABASE_REAL_RESTART_E2E BRISABASE_TEST_RATE_LIMIT BRISABASE_API_URL ADMIN_UI_URL ADMIN_BOOTSTRAP_TOKEN
+unset BRISABASE_REAL_E2E BRISABASE_LOAD_SMOKE BRISABASE_RESTORE_DRILL BRISABASE_REAL_RESTART_E2E BRISABASE_TEST_RATE_LIMIT BRISABASE_API_URL BRISABASE_BACKUP_RESTORE_CERTIFIED ADMIN_UI_URL ADMIN_BOOTSTRAP_TOKEN
 
 printf '\n[6/8] Imagens imutáveis e contrato de configuração de produção\n'
 PRODUCTION_API_PORT="$(available_loopback_port)"
