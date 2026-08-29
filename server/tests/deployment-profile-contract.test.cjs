@@ -91,7 +91,10 @@ assert.match(targetScript, /Cannot remove active target/);
 assert.match(gitignore, /^brisabase\.targets\.json$/m, 'named target state must remain local and out of git');
 assert.equal(packageJson.scripts.deployment, 'node scripts/deployment-profile.cjs');
 assert.equal(packageJson.scripts.target, 'node scripts/target.cjs');
-assert.equal(packageJson.scripts['test:deployment-profiles'], 'node server/tests/deployment-profile-contract.test.cjs');
+assert.equal(
+  packageJson.scripts['test:deployment-profiles'],
+  'node server/tests/deployment-profile-contract.test.cjs && node server/tests/deployment-init-security.test.cjs'
+);
 
 const validator = path.join(root, 'scripts/validate-deployment-profile.cjs');
 const hobbyValidation = spawnSync(process.execPath, [validator, 'hobby', path.join(root, '.env.hobby.example')], { encoding: 'utf8' });
