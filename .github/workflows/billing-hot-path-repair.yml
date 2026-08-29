@@ -1,0 +1,72 @@
+name: Billing Hot Path Repair
+
+on:
+  push:
+    branches: [fix/billing-meter-hot-path]
+
+permissions:
+  contents: write
+
+jobs:
+  repair:
+    if: github.actor != 'github-actions[bot]'
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repair branch
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: fix/billing-meter-hot-path
+          fetch-depth: 0
+
+      - name: Configure Node.js 22
+        uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020
+        with:
+          node-version: 22
+          cache: npm
+
+      - name: Install locked dependencies
+        run: npm ci
+
+      - name: Remove repeated plan writes from request hot path
+        run: |
+          python3 - <<'PY'
+          from pathlib import Path
+          path = Path('server/billing/localBillingEngine.ts')
+          source = path.read_text()
+          old_ensure = """export class LocalBillingEngine {
+  public async ensurePlans():Promise<void>{for(const plan of plansFromEnv())await postgres.execute('INSERT INTO billing_plans(id,name,limits,active) VALUES($1,$2,$3,true) ON CONFLICT(id) DO UPDATE SET name=EXCLUDED.name,limits=EXCLUDED.limits,active=true',[plan.id,plan.name,JSON.stringify(plan)]);}"""
+          new_ensure = """export class LocalBillingEngine {
+  private plansReady:Promise<void>|null=null;
+  public async ensurePlans():Promise<void>{
+    if(!this.plansReady)this.plansReady=(async()=>{for(const plan of plansFromEnv())await postgres.execute('INSERT INTO billing_plans(id,name,limits,active) VALUES($1,$2,$3,true) ON CONFLICT(id) DO UPDATE SET name=EXCLUDED.name,limits=EXCLUDED.limits,active=true',[plan.id,plan.name,JSON.stringify(plan)]);})();
+    try{await this.plansReady;}catch(error){this.plansReady=null;throw error;}
+  }"""
+          old_meter = """  public async meterApiRequest(organizationId:string,requestId:string):Promise<void>{await this.ensurePlans();const subscription=await this.currentSubscription(organizationId);const plan=plansFromEnv().find(item=>item.id===String(subscription?.plan_id||'plan_free'))||plansFromEnv()[0];if(!plan.overageEnabled&&plan.apiRequestsLimit!==null){const row=(await postgres.query<{value:string}>(\"SELECT coalesce(sum(quantity),0)::text AS value FROM billing_usage_ledger WHERE organization_id=$1 AND metric='api_requests' AND occurred_at>=date_trunc('month',now())\",[organizationId]))[0];const used=Number(row?.value||0);if(used+1>plan.apiRequestsLimit){const error:any=new Error(`${plan.name} plan limit exceeded for api_requests. Upgrade the organization plan or reduce usage.`);error.code='PLAN_LIMIT_EXCEEDED';error.metric='api_requests';error.used=used;error.limit=plan.apiRequestsLimit;throw error;}}await this.recordUsage(organizationId,'api_requests',1,'rest_api',`api:${requestId}`,{});}"""
+          new_meter = """  public async meterApiRequest(organizationId:string,requestId:string):Promise<void>{let plan:BillingPlan;if(provider()==='disabled'){plan=plansFromEnv()[0];}else{await this.ensurePlans();const subscription=await this.currentSubscription(organizationId);plan=plansFromEnv().find(item=>item.id===String(subscription?.plan_id||'plan_free'))||plansFromEnv()[0];}if(!plan.overageEnabled&&plan.apiRequestsLimit!==null){const row=(await postgres.query<{value:string}>(\"SELECT coalesce(sum(quantity),0)::text AS value FROM billing_usage_ledger WHERE organization_id=$1 AND metric='api_requests' AND occurred_at>=date_trunc('month',now())\",[organizationId]))[0];const used=Number(row?.value||0);if(used+1>plan.apiRequestsLimit){const error:any=new Error(`${plan.name} plan limit exceeded for api_requests. Upgrade the organization plan or reduce usage.`);error.code='PLAN_LIMIT_EXCEEDED';error.metric='api_requests';error.used=used;error.limit=plan.apiRequestsLimit;throw error;}}await this.recordUsage(organizationId,'api_requests',1,'rest_api',`api:${requestId}`,{});}"""
+          if source.count(old_ensure) != 1:
+              raise SystemExit(f'Expected one ensurePlans hot path block, found {source.count(old_ensure)}')
+          if source.count(old_meter) != 1:
+              raise SystemExit(f'Expected one meterApiRequest block, found {source.count(old_meter)}')
+          source = source.replace(old_ensure, new_ensure).replace(old_meter, new_meter)
+          path.write_text(source)
+          PY
+
+      - name: Remove one-shot workflow before validation
+        run: rm .github/workflows/billing-hot-path-repair.yml
+
+      - name: Validate optimized source
+        run: |
+          npm run phase8:verify
+          npm run typecheck
+          npm test
+
+      - name: Refresh source integrity manifest
+        run: node scripts/release-source-manifest.cjs generate
+
+      - name: Commit repair and remove one-shot workflow
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add -A
+          git commit -m "fix: remove billing plan writes from API hot path"
+          git push origin HEAD:fix/billing-meter-hot-path
