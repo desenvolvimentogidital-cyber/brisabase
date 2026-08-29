@@ -19,6 +19,20 @@ This document defines technical controls expected from each deployment profile. 
 - non-privileged application database role in the bundled production topology;
 - audit logs, IP allowlists, custom roles and SIEM-oriented Enterprise controls.
 
+## Automated supply-chain controls
+
+The repository security workflow adds controls that are independent from runtime authorization:
+
+- CodeQL analysis for JavaScript/TypeScript with `security-extended` queries;
+- dependency review on pull requests, blocking newly introduced high-severity vulnerable dependencies;
+- production dependency audit using the lockfile (`npm audit --omit=dev --audit-level=high`);
+- CycloneDX SBOM generation and retention as a CI artifact;
+- weekly Dependabot checks for npm packages and GitHub Actions;
+- core GitHub Actions run with read-only repository permissions and without persisted checkout credentials;
+- contract tests ensure production BrisaBase and Functions images continue to execute as the unprivileged `node` user.
+
+These automated checks improve evidence and prevention, but they do not replace threat modeling, penetration testing, patch management or an external compliance audit.
+
 ## Hobby
 
 Hobby is safe for local learning because host services bind to loopback. It is not an internet production profile.
