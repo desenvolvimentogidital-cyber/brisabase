@@ -111,7 +111,7 @@ async function runContract(): Promise<void> {
   await json('/api/database/sql/execute', 200, 'POST', { query: `INSERT INTO ${sqlOnlyTable} (id, tenant) VALUES ('sql-proof', 'A') RETURNING tenant;` }, scopeA);
   await json('/api/database/sql/execute', 200, 'POST', { query: `INSERT INTO ${sqlOnlyTable} (id, tenant) VALUES ('sql-proof', 'B') RETURNING tenant;` }, scopeB);
   const isolatedSqlA = await json('/api/database/sql/execute', 200, 'POST', { query: `SELECT tenant FROM ${sqlOnlyTable};` }, scopeA);
-  const isolatedSqlB = await json('/api/database/sql/execute', 200, 'GET', undefined, scopeB);
+  const isolatedSqlB = await json('/api/database/sql/execute', 200, 'POST', { query: `SELECT tenant FROM ${sqlOnlyTable};` }, scopeB);
   assert.deepEqual(isolatedSqlA.rows.map((row: any) => row.tenant), ['A']);
   assert.deepEqual(isolatedSqlB.rows.map((row: any) => row.tenant), ['B']);
   await json('/api/database/sql/execute', 400, 'POST', { query: 'SELECT * FROM pg_roles;' }, scopeA);
