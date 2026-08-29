@@ -44,6 +44,16 @@ require_command() {
   fi
 }
 
+assert_disposable_project() {
+  case "$1" in
+    brisabase-release-local|brisabase-release-production) ;;
+    *)
+      printf "Recusando limpeza destrutiva para projeto Compose não descartável: %s\n" "$1" >&2
+      exit 1
+      ;;
+  esac
+}
+
 wait_for_readiness() {
   local url=$1
   local attempts=$2
@@ -95,6 +105,10 @@ npm run test:ci
 
 printf '\n[2/8] Validação e inicialização da stack real local\n'
 "${LOCAL_COMPOSE[@]}" config >/dev/null
+# A prior interrupted run may leave named volumes behind. Reset only the fixed
+# disposable certification project so the database is fresh on every run.
+assert_disposable_project "$LOCAL_PROJECT"
+"${LOCAL_COMPOSE[@]}" down --volumes --remove-orphans
 LOCAL_STARTED=true
 if ! COMPOSE_PROJECT_NAME="$LOCAL_PROJECT" "${LOCAL_COMPOSE[@]}" up --detach --build; then
   "${LOCAL_COMPOSE[@]}" ps --all
@@ -151,6 +165,8 @@ fi
 "${PRODUCTION_COMPOSE[@]}" config | grep -E 'NODE_(BUILD|RUNTIME)_IMAGE: .*@sha256:'
 
 printf '\n[7/8] Imagem final, role PostgreSQL sem privilégios e comportamento de produção\n'
+assert_disposable_project "$PRODUCTION_PROJECT"
+"${PRODUCTION_COMPOSE[@]}" down --volumes --remove-orphans
 PRODUCTION_STARTED=true
 if ! "${PRODUCTION_COMPOSE[@]}" up --detach --build postgres redis minio minio-init mailpit brisabase; then
   "${PRODUCTION_COMPOSE[@]}" ps --all
