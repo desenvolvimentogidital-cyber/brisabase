@@ -63,6 +63,8 @@ jobs:
           package-manager-cache: false
       - name: Install locked dependencies
         run: npm ci
+      - name: Supply-chain security contract
+        run: node server/tests/supply-chain-security-contract.test.cjs
       - name: Audit production dependencies
         run: npm audit --omit=dev --audit-level=high
       - name: Generate CycloneDX SBOM
