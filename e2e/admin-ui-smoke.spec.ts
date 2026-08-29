@@ -315,8 +315,11 @@ test.describe('Admin UI Smoke Tests', () => {
     await page.goto('/apis', { waitUntil: 'networkidle' });
     await page.waitForTimeout(1_000);
 
-    expect(legacyWebhookCalls, 'The real API screen must not call an unimplemented webhook endpoint').toEqual([]);
-    await expect(page.getByRole('button', { name: 'Webhooks & Gateways', exact: true })).toHaveCount(0);
+    const webhookTab = page.getByRole('button', { name: 'Webhooks & Gateways', exact: true });
+    await expect(webhookTab).toBeVisible();
+    await webhookTab.click();
+    await page.waitForTimeout(500);
+    expect(legacyWebhookCalls, 'Supported webhooks must never fall back to the removed project-scoped webhook endpoint').toEqual([]);
   });
 
   test('Documentation provides in-product secure integration guidance', async ({ page }) => {
