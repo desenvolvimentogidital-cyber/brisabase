@@ -25,7 +25,7 @@ function url(name, value, schemes, options = {}) {
   try { parsed = new URL(value); } catch { fail(`${name} must be a valid URL.`); }
   if (!schemes.includes(parsed.protocol)) fail(`${name} must use ${schemes.join(' or ')}.`);
   if (!parsed.hostname) fail(`${name} must include a hostname.`);
-  if (options.public && ['localhost', '127.0.0.1', 'postgres', 'redis', 'minio', 'brisabase'].includes(parsed.hostname)) {
+  if (options.public && ['localhost', '127.0.0.1', 'postgres', 'redis', 'minio', 'brisabase', 'functions-executor'].includes(parsed.hostname)) {
     fail(`${name} must point to external infrastructure for the enterprise profile.`);
   }
   return parsed;
@@ -81,7 +81,6 @@ async function main() {
   if (!env.BRISABASE_RELEASE || /^(latest|main|master|dev|local)$/i.test(env.BRISABASE_RELEASE)) fail('BRISABASE_RELEASE must identify an immutable release.');
 
   immutableImage(env, 'BRISABASE_IMAGE');
-  immutableImage(env, 'FUNCTIONS_IMAGE');
 
   const database = url('DATABASE_URL', env.DATABASE_URL || '', ['postgres:', 'postgresql:'], { public: true });
   if (!database.username || !database.password) fail('DATABASE_URL must include a dedicated application username and password.');
@@ -116,15 +115,24 @@ async function main() {
     secret(env, 'JWT_SECRET'),
     secret(env, 'AUTH_ENCRYPTION_KEY'),
     secret(env, 'ADMIN_BOOTSTRAP_TOKEN'),
-    secret(env, 'FUNCTIONS_EXECUTOR_TOKEN'),
     secret(env, 'BACKUP_ENCRYPTION_KEY'),
     secret(env, 'BRISABASE_OPERATIONS_TOKEN'),
     secret(env, 'BRISABASE_PITR_OPERATOR_TOKEN'),
     secret(env, 'S3_SECRET_KEY', 16),
   ];
+
+  if (env.FUNCTIONS_ENABLED === 'true') {
+    const executor = url('FUNCTIONS_EXECUTOR_URL', env.FUNCTIONS_EXECUTOR_URL || '', ['https:'], { public: true });
+    const callback = url('FUNCTIONS_RPC_CALLBACK_ORIGIN', env.FUNCTIONS_RPC_CALLBACK_ORIGIN || '', ['https:'], { public: true });
+    if (executor.origin === callback.origin) fail('FUNCTIONS_EXECUTOR_URL must be a separate service origin from the BrisaBase callback origin.');
+    uniqueSecrets.push(secret(env, 'FUNCTIONS_EXECUTOR_TOKEN'));
+  } else if (env.FUNCTIONS_ENABLED !== 'false') {
+    fail('Enterprise FUNCTIONS_ENABLED must be explicitly true or false.');
+  }
+
   if (new Set(uniqueSecrets).size !== uniqueSecrets.length) fail('Enterprise secrets must be distinct from each other.');
 
-  process.stdout.write(JSON.stringify({ profile, valid: true, topology: 'enterprise-external' }) + '\n');
+  process.stdout.write(JSON.stringify({ profile, valid: true, topology: 'enterprise-external', functions: env.FUNCTIONS_ENABLED === 'true' ? 'external-https' : 'disabled' }) + '\n');
 }
 
 main().catch((error) => {
