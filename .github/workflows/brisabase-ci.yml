@@ -17,6 +17,8 @@ jobs:
           node-version: 22
           cache: npm
       - run: npm ci
+      - name: Supply-chain security contract
+        run: node server/tests/supply-chain-security-contract.test.cjs
       - name: Validate Hobby Docker profile
         run: docker compose --env-file .env.hobby.example -f docker-compose.local.yml -f docker-compose.hobby.yml config --quiet
       - name: Validate Enterprise Docker profile
