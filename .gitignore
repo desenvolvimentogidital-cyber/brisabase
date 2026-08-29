@@ -8,3 +8,5 @@ coverage/
 !.env.example
 !.env.production.example
 !.env.homologation.example
+!.env.hobby.example
+!.env.enterprise.example

@@ -13,6 +13,10 @@ jobs:
           node-version: 22
           cache: npm
       - run: npm ci
+      - name: Validate Hobby Docker profile
+        run: docker compose --env-file .env.hobby.example -f docker-compose.local.yml -f docker-compose.hobby.yml config --quiet
+      - name: Validate Enterprise Docker profile
+        run: docker compose --env-file .env.enterprise.example -f docker-compose.enterprise.yml config --quiet
       - run: npm run typecheck
       - run: npm test
       - run: npm run build

@@ -46,6 +46,42 @@ A versão **1.0.0** fecha as oito fases de implementação. Billing comercial é
 - **Fase 7 / 0.9.0** — Remote Config + Flags + Experiments + Analytics + App Quality + Messaging + Search/Vector/RAG/AI.
 - **Fase 8 / 1.0.0** — Billing + Enterprise + IaC + fechamento operacional/comercial da release 1.0.
 
+## Perfis de implantação
+
+O mesmo BrisaBase pode crescer sem trocar API, SDK ou modelo de dados:
+
+- **Hobby / Local** — stack Docker completa para iniciantes, estudos e protótipos, presa a `127.0.0.1`.
+- **Self-Hosted** — produção `single-host` em VPS/servidor próprio, com TLS, volumes persistentes e serviços empacotados.
+- **Enterprise** — containers do BrisaBase/Functions com PostgreSQL, Redis e S3 externos, TLS obrigatório e topologia preparada para HA.
+
+Começo mais simples:
+
+```bash
+npm ci
+npm run deployment -- init hobby
+npm run deployment -- up hobby
+```
+
+Servidor próprio:
+
+```bash
+npm run deployment -- init self-hosted
+# substitua os placeholders de .env.production
+npm run deployment -- doctor self-hosted
+npm run deployment -- up self-hosted
+```
+
+Infraestrutura corporativa:
+
+```bash
+npm run deployment -- init enterprise
+# configure PostgreSQL/Redis/S3 externos e imagens imutáveis em .env.enterprise
+npm run deployment -- doctor enterprise
+npm run deployment -- up enterprise
+```
+
+Os perfis de implantação são independentes dos tiers comerciais Free/Pro/Team/Enterprise. Consulte `docs/DEPLOYMENT_PROFILES.md` e `docs/SECURITY_BASELINE.md`.
+
 ## Modos do console
 
 Runtime real por padrão:
@@ -148,9 +184,9 @@ npm run release:validate:docker
 - `PHASE7_COMPLETION.md`
 - `PHASE8_COMPLETION.md`
 - `BRISABASE_MIGRATION_STATUS.md`
+
 ## Billing, Enterprise e IaC — 1.0
 
 `BILLING_PROVIDER=disabled` mantém instalações self-hosted sem cobrança externa. Quando Stripe é habilitado, checkout/portal/invoices/refunds passam pelo provedor e os webhooks usam assinatura e idempotência. Enterprise oferece domínio verificado, OIDC/SAML Gateway, SCIM, custom roles, IP allowlist, SIEM e evidências técnicas de compliance. IaC exporta manifests com checksum canônico e drift detection.
 
 Antes de lançamento público, revise `docs/legal/TERMS_TEMPLATE.md`, `docs/legal/PRIVACY_TEMPLATE.md` e complete `docs/GO_LIVE_CHECKLIST.md`.
-
