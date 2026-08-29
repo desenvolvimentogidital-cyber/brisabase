@@ -17,52 +17,39 @@ jobs:
         with:
           ref: fix/billing-meter-hot-path
           fetch-depth: 0
-
       - name: Configure Node.js 22
         uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020
         with:
           node-version: 22
           cache: npm
-
       - name: Install locked dependencies
         run: npm ci
-
       - name: Remove repeated plan writes from request hot path
+        env:
+          OLD_ENSURE: ZXhwb3J0IGNsYXNzIExvY2FsQmlsbGluZ0VuZ2luZSB7CiAgcHVibGljIGFzeW5jIGVuc3VyZVBsYW5zKCk6UHJvbWlzZTx2b2lkPntmb3IoY29uc3QgcGxhbiBvZiBwbGFuc0Zyb21FbnYoKSlhd2FpdCBwb3N0Z3Jlcy5leGVjdXRlKCdJTlNFUlQgSU5UTyBiaWxsaW5nX3BsYW5zKGlkLG5hbWUsbGltaXRzLGFjdGl2ZSkgVkFMVUVTKCQxLCQyLCQzLHRydWUpIE9OIENPTkZMSUNUKGlkKSBETyBVUERBVEUgU0VUIG5hbWU9RVhDTFVERUQubmFtZSxsaW1pdHM9RVhDTFVERUQubGltaXRzLGFjdGl2ZT10cnVlJyxbcGxhbi5pZCxwbGFuLm5hbWUsSlNPTi5zdHJpbmdpZnkocGxhbildKTt9
+          NEW_ENSURE: ZXhwb3J0IGNsYXNzIExvY2FsQmlsbGluZ0VuZ2luZSB7CiAgcHJpdmF0ZSBwbGFuc1JlYWR5OlByb21pc2U8dm9pZD58bnVsbD1udWxsOwogIHB1YmxpYyBhc3luYyBlbnN1cmVQbGFucygpOlByb21pc2U8dm9pZD57CiAgICBpZighdGhpcy5wbGFuc1JlYWR5KXRoaXMucGxhbnNSZWFkeT0oYXN5bmMoKT0+e2Zvcihjb25zdCBwbGFuIG9mIHBsYW5zRnJvbUVudigpKWF3YWl0IHBvc3RncmVzLmV4ZWN1dGUoJ0lOU0VSVCBJTlRPIGJpbGxpbmdfcGxhbnMoaWQsbmFtZSxsaW1pdHMsYWN0aXZlKSBWQUxVRVMoJDEsJDIsJDMsdHJ1ZSkgT04gQ09ORkxJQ1QoaWQpIERPIFVQREFURSBTRVQgbmFtZT1FWENMVURFRC5uYW1lLGxpbWl0cz1FWENMVURFRC5saW1pdHMsYWN0aXZlPXRydWUnLFtwbGFuLmlkLHBsYW4ubmFtZSxKU09OLnN0cmluZ2lmeShwbGFuKV0pO30pKCk7CiAgICB0cnl7YXdhaXQgdGhpcy5wbGFuc1JlYWR5O31jYXRjaChlcnJvcil7dGhpcy5wbGFuc1JlYWR5PW51bGw7dGhyb3cgZXJyb3I7fQogIH0=
+          OLD_METER: ICBwdWJsaWMgYXN5bmMgbWV0ZXJBcGlSZXF1ZXN0KG9yZ2FuaXphdGlvbklkOnN0cmluZyxyZXF1ZXN0SWQ6c3RyaW5nKTpQcm9taXNlPHZvaWQ+e2F3YWl0IHRoaXMuZW5zdXJlUGxhbnMoKTtjb25zdCBzdWJzY3JpcHRpb249YXdhaXQgdGhpcy5jdXJyZW50U3Vic2NyaXB0aW9uKG9yZ2FuaXphdGlvbklkKTtjb25zdCBwbGFuPXBsYW5zRnJvbUVudigpLmZpbmQoaXRlbT0+aXRlbS5pZD09PVN0cmluZyhzdWJzY3JpcHRpb24/LnBsYW5faWR8fCdwbGFuX2ZyZWUnKSl8fHBsYW5zRnJvbUVudigpWzBdO2lmKCFwbGFuLm92ZXJhZ2VFbmFibGVkJiZwbGFuLmFwaVJlcXVlc3RzTGltaXQhPT1udWxsKXtjb25zdCByb3c9KGF3YWl0IHBvc3RncmVzLnF1ZXJ5PHt2YWx1ZTpzdHJpbmd9PigiU0VMRUNUIGNvYWxlc2NlKHN1bShxdWFudGl0eSksMCk6OnRleHQgQVMgdmFsdWUgRlJPTSBiaWxsaW5nX3VzYWdlX2xlZGdlciBXSEVSRSBvcmdhbml6YXRpb25faWQ9JDEgQU5EIG1ldHJpYz0nYXBpX3JlcXVlc3RzJyBBTkQgb2NjdXJyZWRfYXQ+PWRhdGVfdHJ1bmMoJ21vbnRoJyxub3coKSkiLFtvcmdhbml6YXRpb25JZF0pKVswXTtjb25zdCB1c2VkPU51bWJlcihyb3c/LnZhbHVlfHwwKTtpZih1c2VkKzE+cGxhbi5hcGlSZXF1ZXN0c0xpbWl0KXtjb25zdCBlcnJvcjphbnk9bmV3IEVycm9yKGAke3BsYW4ubmFtZX0gcGxhbiBsaW1pdCBleGNlZWRlZCBmb3IgYXBpX3JlcXVlc3RzLiBVcGdyYWRlIHRoZSBvcmdhbml6YXRpb24gcGxhbiBvciByZWR1Y2UgdXNhZ2UuYCk7ZXJyb3IuY29kZT0nUExBTl9MSU1JVF9FWENFRURFRCc7ZXJyb3IubWV0cmljPSdhcGlfcmVxdWVzdHMnO2Vycm9yLnVzZWQ9dXNlZDtlcnJvci5saW1pdD1wbGFuLmFwaVJlcXVlc3RzTGltaXQ7dGhyb3cgZXJyb3I7fX1hd2FpdCB0aGlzLnJlY29yZFVzYWdlKG9yZ2FuaXphdGlvbklkLCdhcGlfcmVxdWVzdHMnLDEsJ3Jlc3RfYXBpJyxgYXBpOiR7cmVxdWVzdElkfWAse30pO30=
+          NEW_METER: ICBwdWJsaWMgYXN5bmMgbWV0ZXJBcGlSZXF1ZXN0KG9yZ2FuaXphdGlvbklkOnN0cmluZyxyZXF1ZXN0SWQ6c3RyaW5nKTpQcm9taXNlPHZvaWQ+e2xldCBwbGFuOkJpbGxpbmdQbGFuO2lmKHByb3ZpZGVyKCk9PT0nZGlzYWJsZWQnKXtwbGFuPXBsYW5zRnJvbUVudigpWzBdO31lbHNle2F3YWl0IHRoaXMuZW5zdXJlUGxhbnMoKTtjb25zdCBzdWJzY3JpcHRpb249YXdhaXQgdGhpcy5jdXJyZW50U3Vic2NyaXB0aW9uKG9yZ2FuaXphdGlvbklkKTtwbGFuPXBsYW5zRnJvbUVudigpLmZpbmQoaXRlbT0+aXRlbS5pZD09PVN0cmluZyhzdWJzY3JpcHRpb24/LnBsYW5faWR8fCdwbGFuX2ZyZWUnKSl8fHBsYW5zRnJvbUVudigpWzBdO31pZighcGxhbi5vdmVyYWdlRW5hYmxlZCYmcGxhbi5hcGlSZXF1ZXN0c0xpbWl0IT09bnVsbCl7Y29uc3Qgcm93PShhd2FpdCBwb3N0Z3Jlcy5xdWVyeTx7dmFsdWU6c3RyaW5nfT4oIlNFTEVDVCBjb2FsZXNjZShzdW0ocXVhbnRpdHkpLDApOjp0ZXh0IEFTIHZhbHVlIEZST00gYmlsbGluZ191c2FnZV9sZWRnZXIgV0hFUkUgb3JnYW5pemF0aW9uX2lkPSQxIEFORCBtZXRyaWM9J2FwaV9yZXF1ZXN0cycgQU5EIG9jY3VycmVkX2F0Pj1kYXRlX3RydW5jKCdtb250aCcsbm93KCkpIixbb3JnYW5pemF0aW9uSWRdKSlbMF07Y29uc3QgdXNlZD1OdW1iZXIocm93Py52YWx1ZXx8MCk7aWYodXNlZCsxPnBsYW4uYXBpUmVxdWVzdHNMaW1pdCl7Y29uc3QgZXJyb3I6YW55PW5ldyBFcnJvcihgJHtwbGFuLm5hbWV9IHBsYW4gbGltaXQgZXhjZWVkZWQgZm9yIGFwaV9yZXF1ZXN0cy4gVXBncmFkZSB0aGUgb3JnYW5pemF0aW9uIHBsYW4gb3IgcmVkdWNlIHVzYWdlLmApO2Vycm9yLmNvZGU9J1BMQU5fTElNSVRfRVhDRUVERUQnO2Vycm9yLm1ldHJpYz0nYXBpX3JlcXVlc3RzJztlcnJvci51c2VkPXVzZWQ7ZXJyb3IubGltaXQ9cGxhbi5hcGlSZXF1ZXN0c0xpbWl0O3Rocm93IGVycm9yO319YXdhaXQgdGhpcy5yZWNvcmRVc2FnZShvcmdhbml6YXRpb25JZCwnYXBpX3JlcXVlc3RzJywxLCdyZXN0X2FwaScsYGFwaToke3JlcXVlc3RJZH1gLHt9KTt9
         run: |
-          python3 - <<'PY'
-          from pathlib import Path
-          path = Path('server/billing/localBillingEngine.ts')
-          source = path.read_text()
-          old_ensure = """export class LocalBillingEngine {
-  public async ensurePlans():Promise<void>{for(const plan of plansFromEnv())await postgres.execute('INSERT INTO billing_plans(id,name,limits,active) VALUES($1,$2,$3,true) ON CONFLICT(id) DO UPDATE SET name=EXCLUDED.name,limits=EXCLUDED.limits,active=true',[plan.id,plan.name,JSON.stringify(plan)]);}"""
-          new_ensure = """export class LocalBillingEngine {
-  private plansReady:Promise<void>|null=null;
-  public async ensurePlans():Promise<void>{
-    if(!this.plansReady)this.plansReady=(async()=>{for(const plan of plansFromEnv())await postgres.execute('INSERT INTO billing_plans(id,name,limits,active) VALUES($1,$2,$3,true) ON CONFLICT(id) DO UPDATE SET name=EXCLUDED.name,limits=EXCLUDED.limits,active=true',[plan.id,plan.name,JSON.stringify(plan)]);})();
-    try{await this.plansReady;}catch(error){this.plansReady=null;throw error;}
-  }"""
-          old_meter = """  public async meterApiRequest(organizationId:string,requestId:string):Promise<void>{await this.ensurePlans();const subscription=await this.currentSubscription(organizationId);const plan=plansFromEnv().find(item=>item.id===String(subscription?.plan_id||'plan_free'))||plansFromEnv()[0];if(!plan.overageEnabled&&plan.apiRequestsLimit!==null){const row=(await postgres.query<{value:string}>(\"SELECT coalesce(sum(quantity),0)::text AS value FROM billing_usage_ledger WHERE organization_id=$1 AND metric='api_requests' AND occurred_at>=date_trunc('month',now())\",[organizationId]))[0];const used=Number(row?.value||0);if(used+1>plan.apiRequestsLimit){const error:any=new Error(`${plan.name} plan limit exceeded for api_requests. Upgrade the organization plan or reduce usage.`);error.code='PLAN_LIMIT_EXCEEDED';error.metric='api_requests';error.used=used;error.limit=plan.apiRequestsLimit;throw error;}}await this.recordUsage(organizationId,'api_requests',1,'rest_api',`api:${requestId}`,{});}"""
-          new_meter = """  public async meterApiRequest(organizationId:string,requestId:string):Promise<void>{let plan:BillingPlan;if(provider()==='disabled'){plan=plansFromEnv()[0];}else{await this.ensurePlans();const subscription=await this.currentSubscription(organizationId);plan=plansFromEnv().find(item=>item.id===String(subscription?.plan_id||'plan_free'))||plansFromEnv()[0];}if(!plan.overageEnabled&&plan.apiRequestsLimit!==null){const row=(await postgres.query<{value:string}>(\"SELECT coalesce(sum(quantity),0)::text AS value FROM billing_usage_ledger WHERE organization_id=$1 AND metric='api_requests' AND occurred_at>=date_trunc('month',now())\",[organizationId]))[0];const used=Number(row?.value||0);if(used+1>plan.apiRequestsLimit){const error:any=new Error(`${plan.name} plan limit exceeded for api_requests. Upgrade the organization plan or reduce usage.`);error.code='PLAN_LIMIT_EXCEEDED';error.metric='api_requests';error.used=used;error.limit=plan.apiRequestsLimit;throw error;}}await this.recordUsage(organizationId,'api_requests',1,'rest_api',`api:${requestId}`,{});}"""
-          if source.count(old_ensure) != 1:
-              raise SystemExit(f'Expected one ensurePlans hot path block, found {source.count(old_ensure)}')
-          if source.count(old_meter) != 1:
-              raise SystemExit(f'Expected one meterApiRequest block, found {source.count(old_meter)}')
-          source = source.replace(old_ensure, new_ensure).replace(old_meter, new_meter)
-          path.write_text(source)
-          PY
-
+          node - <<'NODE'
+          const fs=require('node:fs');
+          const source=fs.readFileSync('server/billing/localBillingEngine.ts','utf8');
+          const decode=(value)=>Buffer.from(value,'base64').toString('utf8');
+          const oldEnsure=decode(process.env.OLD_ENSURE); const newEnsure=decode(process.env.NEW_ENSURE);
+          const oldMeter=decode(process.env.OLD_METER); const newMeter=decode(process.env.NEW_METER);
+          if(source.split(oldEnsure).length-1!==1) throw new Error('ensurePlans source block did not match exactly once');
+          if(source.split(oldMeter).length-1!==1) throw new Error('meterApiRequest source block did not match exactly once');
+          fs.writeFileSync('server/billing/localBillingEngine.ts',source.replace(oldEnsure,newEnsure).replace(oldMeter,newMeter));
+          NODE
       - name: Remove one-shot workflow before validation
         run: rm .github/workflows/billing-hot-path-repair.yml
-
       - name: Validate optimized source
         run: |
           npm run phase8:verify
           npm run typecheck
           npm test
-
       - name: Refresh source integrity manifest
         run: node scripts/release-source-manifest.cjs generate
-
       - name: Commit repair and remove one-shot workflow
         run: |
           git config user.name "github-actions[bot]"
