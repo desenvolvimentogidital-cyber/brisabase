@@ -55,6 +55,9 @@ COPY --from=build /app/server/db/legacy-compat.cjs ./server/db/legacy-compat.cjs
 COPY --from=build /app/server/db/migrate.cjs ./server/db/migrate.cjs
 COPY --from=build /app/server/db/status.cjs ./server/db/status.cjs
 COPY --from=build /app/server/db/admin-create.cjs ./server/db/admin-create.cjs
+# Deployment/orchestrator configuration is validated by the release/deploy gate.
+# The application performs its own strict runtime-only validation through
+# config.assertRealRuntime() before connecting to any dependency.
 COPY --from=build /app/scripts/validate-production-env.cjs ./scripts/validate-production-env.cjs
 
 EXPOSE 3000
@@ -62,7 +65,7 @@ EXPOSE 3000
 # retains /health/required for self-hosted readiness; PaaS providers use /healthz.
 HEALTHCHECK --interval=10s --timeout=5s --retries=12 CMD node -e "fetch('http://127.0.0.1:' + (process.env.PORT || 3000) + '/healthz').then((r)=>process.exit(r.status===200?0:1)).catch(()=>process.exit(1))"
 USER node
-CMD ["sh", "-c", "if [ \"$NODE_ENV\" = production ]; then node scripts/validate-production-env.cjs --environment; fi && node dist/server/server.cjs"]
+CMD ["node", "dist/server/server.cjs"]
 
 # Disposable integration target. It contains the seed used by destructive
 # Docker restore tests. The local database is PostgreSQL 16, so the restore
