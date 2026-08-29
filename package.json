@@ -32,6 +32,7 @@
     "cli": "node developer/cli/brisabase.mjs",
     "deployment": "node scripts/deployment-profile.cjs",
     "deployment:validate": "node scripts/validate-deployment-profile.cjs",
+    "target": "node scripts/target.cjs",
     "test:docker:production": "node --import tsx server/tests/docker.production-contract.test.ts",
     "release:validate:docker": "node scripts/run-docker-release-gates.cjs",
     "secrets:generate": "node scripts/generate-production-secrets.cjs --output brisabase-production-secrets.env",
