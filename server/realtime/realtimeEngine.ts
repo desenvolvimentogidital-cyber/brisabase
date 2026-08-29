@@ -131,7 +131,23 @@ export class RealtimeEngine extends EventEmitter {
     if (this.transport) {
       await this.transport.publish(event);
     }
-    void webhookEngine.emit({ organizationId:event.organizationId, projectId:event.projectId, environmentId:event.environmentId }, `database.${event.operation.toLowerCase()}`, { schema:event.schema, table:event.table, new:event.new, old:event.old, transactionId:event.transactionId, requestId:event.requestId }, event.eventId);
+
+    // Webhook delivery is an asynchronous side effect. A temporary webhook
+    // storage/database failure must not turn a successfully processed realtime
+    // CDC event into an unhandled promise rejection or terminate the runtime.
+    void webhookEngine.emit(
+      { organizationId: event.organizationId, projectId: event.projectId, environmentId: event.environmentId },
+      `database.${event.operation.toLowerCase()}`,
+      { schema: event.schema, table: event.table, new: event.new, old: event.old, transactionId: event.transactionId, requestId: event.requestId },
+      event.eventId,
+    ).catch((error) => {
+      logger.warn('Realtime webhook dispatch could not be queued.', {
+        eventId: event.eventId,
+        projectId: event.projectId,
+        environmentId: event.environmentId,
+        error: error instanceof Error ? error.message : String(error),
+      });
+    });
     observability.traces.endSpan(traceSpan);
   }
 

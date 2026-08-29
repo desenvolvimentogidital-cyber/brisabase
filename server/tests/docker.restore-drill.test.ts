@@ -41,7 +41,7 @@ async function run(): Promise<void> {
   const verified = await json(`/api/backups/${backup.id}/verify`, 200, 'GET', undefined, control);
   assert.equal(verified.valid, true);
 
-  await json(`/api/database/tables/${table}`, 200, 'DELETE', undefined, control);
+  await json(`/api/database/tables/${table}?confirm=${encodeURIComponent(table)}`, 200, 'DELETE', undefined, control);
   await expect(await fetch(`${base}/api/storage/buckets/${bucket}/objects/${objectPath}?soft=false`, { method: 'DELETE', headers: control }), 200, 'purge restore proof');
   await json(`/api/storage/buckets/${bucket}`, 200, 'DELETE', undefined, control);
   await expect(await fetch(`${base}/api/security/policies/${tablePolicy.id}`, { method: 'DELETE', headers: control }), 204, 'delete table policy');

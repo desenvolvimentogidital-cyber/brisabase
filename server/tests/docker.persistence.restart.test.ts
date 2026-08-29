@@ -101,7 +101,7 @@ async function runTest(): Promise<void> {
   assert.equal(remaining, '0', 'persistent retention must delete only telemetry older than the configured policy');
   await json('/api/observability/retention', 'PATCH', { logsDays: 30, metricsDays: 30, tracesDays: 7, alertsDays: 90, maxEntries: 10_000 });
   await json(`/api/observability/alerts/${alertRule.id}`, 'DELETE', undefined, serviceHeaders, 204);
-  await json(`/api/database/tables/${backupTable}`, 'DELETE', undefined, serviceHeaders, 200);
+  await json(`/api/database/tables/${backupTable}?confirm=${encodeURIComponent(backupTable)}`, 'DELETE', undefined, serviceHeaders, 200);
   await json(`/api/backups/${backup.id}`, 'DELETE', undefined, serviceHeaders, 204);
   console.log('Docker restart persistence passed: Functions, backups, alert rules/events and PostgreSQL-backed metrics/traces survived API restart.');
 }

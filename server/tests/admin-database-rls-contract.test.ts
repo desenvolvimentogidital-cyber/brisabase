@@ -50,10 +50,11 @@ assert.doesNotMatch(authMiddleware, /billing: \[[^\]]*'admin'/, 'Billing must no
 
 // The row-list route must return the scoped database result directly only for
 // the explicitly authorized Database Editor roles. All other callers still
-// pass through the RLS engine.
+// pass through the RLS engine. Allow ordinary whitespace/newlines between the
+// two statements so this security contract does not depend on source formatting.
 assert.match(
   databaseRouter,
-  /if \(canReadManagedRows\(req\)\) \{ res\.json\(result\); return; \} const rows = securityEngine\.filterRows/,
+  /if \(canReadManagedRows\(req\)\) \{ res\.json\(result\); return; \}\s*const rows = securityEngine\.filterRows/,
   'Database Editor reads must bypass end-user RLS only through canReadManagedRows.',
 );
 
@@ -79,7 +80,11 @@ const controlPlaneIndex = server.indexOf('app.use(controlPlaneAuthorizationMiddl
 const databaseIndex = server.indexOf('app.use(config.testMode ? databaseRouter : realDatabaseRouter);');
 assert.ok(authIndex >= 0 && controlPlaneIndex > authIndex && databaseIndex > controlPlaneIndex, 'Database management routes must remain behind authMiddleware and controlPlaneAuthorizationMiddleware.');
 assert.match(authMiddleware, /if \(req\.authKind !== 'admin' \|\| !req\.user\)/, 'Control-plane authorization must require an admin credential.');
-assert.match(authMiddleware, /if \(!roleAllows\(role, permission\)\)/, 'Control-plane authorization must enforce organization role permissions.');
+assert.match(
+  authMiddleware,
+  /if \(!roleAllows\(role, permission\) && !await enterpriseEngine\.customRoleAllows\(organizationId, role, permission\)\)/,
+  'Control-plane authorization must enforce built-in or explicitly configured enterprise role permissions.',
+);
 
 console.log('  ✅ PASS: Database Editor bypass is scoped to authorized admin sessions.');
 console.log('  ✅ PASS: Database write tools remain restricted to owner/admin.');

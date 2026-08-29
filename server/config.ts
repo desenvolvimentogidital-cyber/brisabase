@@ -219,7 +219,7 @@ export const config = {
   },
   hosting: {
     enabled: bool(process.env.HOSTING_ENABLED, true),
-    customDomainsEnabled: bool(process.env.HOSTING_CUSTOM_DOMAINS_ENABLED, production),
+    customDomainsEnabled: bool(process.env.HOSTING_CUSTOM_DOMAINS_ENABLED, false),
     caddyAskToken: process.env.HOSTING_CADDY_ASK_TOKEN || '',
   },
   infrastructure: {

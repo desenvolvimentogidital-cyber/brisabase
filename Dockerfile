@@ -22,6 +22,11 @@ ENV NODE_ENV=production
 ENV PORT=3000
 COPY package.json package-lock.json ./
 RUN npm ci --omit=dev && npm cache clean --force
+# The bundled control plane keeps esbuild external because function compilation
+# happens at runtime. Package only the lock-resolved compiler and its platform
+# binary rather than installing every development dependency in production.
+COPY --from=build /app/node_modules/esbuild ./node_modules/esbuild
+COPY --from=build /app/node_modules/@esbuild ./node_modules/@esbuild
 
 # Backup/Restore supports the two production database majors used by BrisaBase:
 # self-hosted PostgreSQL 16 and managed Neon PostgreSQL 18. The public pg_dump /
@@ -41,12 +46,18 @@ RUN printf '%s\n' '#!/bin/sh' 'exec node /usr/local/lib/brisabase/postgres-tool-
 
 COPY --from=build /app/dist ./dist
 COPY --from=build /app/server/db/migrations ./server/db/migrations
-# Shared TLS helper is required by the operator DB tools copied below.
+# Shared TLS and upgrade-compatibility helpers are required by the operator DB
+# tools copied below. Keep them beside the CommonJS callers so relative requires
+# also work in production and disposable migration containers.
 COPY --from=build /app/server/db/pg-ssl-options.cjs ./server/db/pg-ssl-options.cjs
+COPY --from=build /app/server/db/legacy-compat.cjs ./server/db/legacy-compat.cjs
 # Kept for explicit operator use only; production startup does not invoke it.
 COPY --from=build /app/server/db/migrate.cjs ./server/db/migrate.cjs
 COPY --from=build /app/server/db/status.cjs ./server/db/status.cjs
 COPY --from=build /app/server/db/admin-create.cjs ./server/db/admin-create.cjs
+# Deployment/orchestrator configuration is validated by the release/deploy gate.
+# The application performs its own strict runtime-only validation through
+# config.assertRealRuntime() before connecting to any dependency.
 COPY --from=build /app/scripts/validate-production-env.cjs ./scripts/validate-production-env.cjs
 
 EXPOSE 3000
@@ -54,7 +65,7 @@ EXPOSE 3000
 # retains /health/required for self-hosted readiness; PaaS providers use /healthz.
 HEALTHCHECK --interval=10s --timeout=5s --retries=12 CMD node -e "fetch('http://127.0.0.1:' + (process.env.PORT || 3000) + '/healthz').then((r)=>process.exit(r.status===200?0:1)).catch(()=>process.exit(1))"
 USER node
-CMD ["sh", "-c", "if [ \"$NODE_ENV\" = production ]; then node scripts/validate-production-env.cjs --environment; fi && node dist/server/server.cjs"]
+CMD ["node", "dist/server/server.cjs"]
 
 # Disposable integration target. It contains the seed used by destructive
 # Docker restore tests. The local database is PostgreSQL 16, so the restore

@@ -6,7 +6,10 @@ assert(migration.includes('CHECK(amount_cents > 0)'),'refund amounts must be pos
 assert(migration.includes("CHECK(protocol IN ('oidc','saml_gateway'))"),'enterprise SSO protocol constraint missing');
 assert(migration.includes('token_hash CHAR(64) NOT NULL UNIQUE'),'SCIM tokens must be hash-persisted');
 
-const billing=read('server/billing/localBillingEngine.ts');const billingRoutes=read('server/routes/billing.ts');
+const billing=read('server/billing/localBillingEngine.ts');const billingRoutes=read('server/routes/billing.ts');const storageMigration=read('server/db/migrations/004_storage_metadata_persistence.sql');
+assert(/\bsize BIGINT NOT NULL\b/.test(storageMigration),'canonical storage object size column missing');
+assert(billing.includes('sum(o.size)'),'billing storage usage must use canonical storage_objects.size');
+assert(!billing.includes('sum(o.size_bytes)'),'billing must not use legacy storage_objects.size_bytes');
 assert(billingRoutes.includes("express.raw({type:'application/json'"),'Stripe webhook must receive raw bytes');
 assert(billing.includes("crypto.createHmac('sha256',secret)"),'Stripe webhook signature verification missing');
 assert(billing.includes('timingSafeHex'),'Stripe webhook signature compare must be timing-safe');

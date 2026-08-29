@@ -18,6 +18,12 @@ ENV PORT=3100
 # executor authentication token shared with the BrisaBase API.
 COPY package.json package-lock.json ./
 RUN npm ci --omit=dev && npm cache clean --force
+# The executor transpiles user TypeScript at invocation time. esbuild is locked
+# as a build dependency for the repository, so copy only the resolved compiler
+# package and platform binary into this minimal runtime instead of installing all
+# development dependencies in the isolated executor image.
+COPY --from=build /app/node_modules/esbuild ./node_modules/esbuild
+COPY --from=build /app/node_modules/@esbuild ./node_modules/@esbuild
 COPY --from=build /app/dist/server/functions-executor.cjs ./dist/server/functions-executor.cjs
 COPY --from=build /app/dist/server/functions-executor-child.cjs ./dist/server/functions-executor-child.cjs
 

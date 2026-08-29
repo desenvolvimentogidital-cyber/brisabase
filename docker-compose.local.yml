@@ -162,6 +162,7 @@ services:
       OBSERVABILITY_TRACE_RETENTION_DAYS: "7"
       LOG_FORMAT: json
       BACKUP_ENABLED: "true"
+      BACKUP_RESTORE_CERTIFIED: ${BRISABASE_BACKUP_RESTORE_CERTIFIED:-false}
       BACKUP_STORAGE_BUCKET: brisabase-backups
     depends_on:
       postgres:

@@ -124,9 +124,13 @@ async function runContract(): Promise<void> {
   await json(`/rest/v1/${table}?select=id`, 401, 'GET', undefined, { apikey: keyA.fullSecretKey, 'x-project-id': projectB.id, 'x-environment-id': environmentB.id });
   await json(`/rest/v1/${table}?select=id`, 401, 'GET', undefined, { apikey: keyB.fullSecretKey, 'x-project-id': projectA.id, 'x-environment-id': environmentA.id });
 
-  await json('/api/backups', 503, 'GET', undefined, scopeA);
-  await json('/api/functions', 403, 'GET', undefined, scopeA);
-  await json('/api/infrastructure/overview', 503, 'GET', undefined, scopeA);
+  const backups = await json('/api/backups', 200, 'GET', undefined, scopeA);
+  assert.ok(Array.isArray(backups), 'Production encrypted backup listing must be available when BACKUP_ENABLED=true.');
+  const functions = await json('/api/functions', 200, 'GET', undefined, scopeA);
+  assert.ok(Array.isArray(functions), 'Production Functions management must be available when FUNCTIONS_ENABLED=true with an isolated executor.');
+  const infrastructure = await json('/api/infrastructure/overview', 200, 'GET', undefined, scopeA);
+  assert.equal(infrastructure.mode, 'production-runtime', 'Production infrastructure overview must expose the real production runtime.');
+  assert.equal(infrastructure.health?.status, 'healthy', 'Production infrastructure overview must report healthy runtime dependencies.');
   await json('/api/ecosystem/overview', 503, 'GET', undefined, scopeA);
 
   for (const internalPath of ['/server.cjs', '/server.cjs.map', '/server/server.cjs', '/dist/server/server.cjs', '/server/db/admin-create.cjs', '/package.json', '/server.ts', '/.env']) await expect(internalPath, 404);

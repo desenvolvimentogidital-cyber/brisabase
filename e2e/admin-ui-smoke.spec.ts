@@ -5,23 +5,22 @@ let ORGANIZATION_ID = '';
 let ENVIRONMENT_ID = '';
 let ACCESS_TOKEN = '';
 let ADMIN_USER: Record<string, unknown> = {};
-const RUN_ID = `${Date.now()}-${process.pid}-${Math.random().toString(36).slice(2, 10)}`;
+const RUN_ID = String(process.env.ADMIN_SMOKE_RUN_ID || process.env.GITHUB_RUN_ID || 'local').replace(/[^a-zA-Z0-9_-]/g, '-');
 const ADMIN_EMAIL = process.env.ADMIN_SMOKE_EMAIL || `admin-ui-smoke-${RUN_ID}@brisabase.local`;
 const ADMIN_PASSWORD = 'SuperSecretSmokePassword123!';
 const ADMIN_BOOTSTRAP_TOKEN = process.env.ADMIN_BOOTSTRAP_TOKEN || 'local-bootstrap-token-for-isolated-e2e-only-2026';
-const IS_FIXED_ADMIN_EMAIL = Boolean(process.env.ADMIN_SMOKE_EMAIL);
 
 const PAGES = [
-  { path: () => '/dashboard', name: 'Dashboard' },
+  { path: () => '/', name: 'Dashboard' },
   { path: () => '/projects', name: 'Projects' },
-  { path: () => `/projects/${PROJECT_ID}/database`, name: 'Database' },
-  { path: () => `/projects/${PROJECT_ID}/auth`, name: 'Authentication' },
-  { path: () => `/projects/${PROJECT_ID}/storage`, name: 'Storage' },
-  { path: () => `/projects/${PROJECT_ID}/realtime`, name: 'Realtime' },
-  { path: () => `/projects/${PROJECT_ID}/apis`, name: 'APIs' },
-  { path: () => `/projects/${PROJECT_ID}/logs`, name: 'Logs' },
-  { path: () => `/projects/${PROJECT_ID}/monitoring`, name: 'Observability' },
-  { path: () => '/team', name: 'Team' },
+  { path: () => '/database', name: 'Database' },
+  { path: () => '/auth', name: 'Authentication' },
+  { path: () => '/storage', name: 'Storage' },
+  { path: () => '/realtime', name: 'Realtime' },
+  { path: () => '/apis', name: 'APIs' },
+  { path: () => '/logs', name: 'Logs' },
+  { path: () => '/observability', name: 'Observability' },
+  { path: () => '/members', name: 'Members' },
   { path: () => '/settings', name: 'Settings' },
   { path: () => '/billing', name: 'Billing' },
   { path: () => '/docs', name: 'Documentation' },
@@ -79,22 +78,22 @@ async function loginSmokeAdmin(request: APIRequestContext) {
 }
 
 async function ensureSmokeAdmin(request: APIRequestContext) {
+  const existingLogin = await loginSmokeAdmin(request);
+  if (existingLogin.status() === 200) return existingLogin;
+  if (existingLogin.status() !== 401) {
+    throw new Error(`Existing smoke-admin login expected HTTP 200 or 401, received HTTP ${existingLogin.status()}.`);
+  }
+
   const signupResponse = await signUpSmokeAdmin(request);
-  if (signupResponse.status() === 201) {
-    const loginResponse = await loginSmokeAdmin(request);
-    if (loginResponse.status() !== 200) {
-      throw new Error(`Admin login after successful signup failed with HTTP ${loginResponse.status()}.`);
-    }
-    return loginResponse;
+  if (![201, 409].includes(signupResponse.status())) {
+    throw new Error(`Admin signup expected HTTP 201 or 409, received HTTP ${signupResponse.status()}.`);
   }
 
-  if (signupResponse.status() === 409 && IS_FIXED_ADMIN_EMAIL) {
-    const loginResponse = await loginSmokeAdmin(request);
-    if (loginResponse.status() === 200) return loginResponse;
-    throw new Error(`Admin signup returned HTTP 409 for fixed email, but the existing user could not authenticate (HTTP ${loginResponse.status()}).`);
+  const loginResponse = await loginSmokeAdmin(request);
+  if (loginResponse.status() !== 200) {
+    throw new Error(`Admin login after smoke-admin initialization failed with HTTP ${loginResponse.status()}.`);
   }
-
-  throw new Error(`Admin signup expected HTTP 201${IS_FIXED_ADMIN_EMAIL ? ' or a verified fixed-email HTTP 409' : ''}, received HTTP ${signupResponse.status()}.`);
+  return loginResponse;
 }
 
 async function checkPage(page: Page, path: string, name: string): Promise<void> {
@@ -119,6 +118,7 @@ async function checkPage(page: Page, path: string, name: string): Promise<void> 
 
   await page.goto(path, { waitUntil: 'networkidle', timeout: 30_000 });
   await page.waitForTimeout(2_000);
+  expect(new URL(page.url()).pathname, `${name} must stay on the requested canonical route`).toBe(path);
 
   // Check for critical console errors
   const criticalErrors = consoleErrors.filter((e) =>
@@ -183,6 +183,8 @@ test.describe('Admin UI Smoke Tests', () => {
       window.localStorage.setItem('brisabase.organizationId', organizationId);
       window.localStorage.setItem('brisabase.projectId', projectId);
       window.localStorage.setItem('brisabase.environmentId', environmentId);
+      window.localStorage.setItem('brisabase_active_project_id', projectId);
+      window.localStorage.setItem(`brisabase_environment_id:${projectId}`, environmentId);
     }, { token: ACCESS_TOKEN, user: ADMIN_USER, organizationId: ORGANIZATION_ID, projectId: PROJECT_ID, environmentId: ENVIRONMENT_ID });
   });
 
@@ -209,7 +211,7 @@ test.describe('Admin UI Smoke Tests', () => {
       }
     });
 
-    await page.goto(`/projects/${PROJECT_ID}/database`, { waitUntil: 'networkidle' });
+    await page.goto('/database', { waitUntil: 'networkidle' });
     await page.waitForTimeout(1_000);
 
     expect(apiFailures, `Database must reject unexpected API failures: ${apiFailures.join('; ')}`).toEqual([]);
@@ -252,7 +254,7 @@ test.describe('Admin UI Smoke Tests', () => {
       });
     });
 
-    await page.goto(`/projects/${PROJECT_ID}/database`, { waitUntil: 'networkidle' });
+    await page.goto('/database', { waitUntil: 'networkidle' });
     await page.waitForTimeout(1_000);
 
     expect(databaseRequests).toHaveLength(8);
@@ -265,7 +267,7 @@ test.describe('Admin UI Smoke Tests', () => {
   });
 
   test('Navigation between pages works', async ({ page }) => {
-    await page.goto('/dashboard', { waitUntil: 'networkidle' });
+    await page.goto('/', { waitUntil: 'networkidle' });
     await page.waitForTimeout(1_000);
 
     // Navigate to Projects
@@ -273,10 +275,10 @@ test.describe('Admin UI Smoke Tests', () => {
     await page.waitForTimeout(1_000);
     expect(page.url()).toContain('/projects');
 
-    // Navigate to Team
-    await page.goto('/team', { waitUntil: 'networkidle' });
+    // Navigate to Members
+    await page.goto('/members', { waitUntil: 'networkidle' });
     await page.waitForTimeout(1_000);
-    expect(page.url()).toContain('/team');
+    expect(page.url()).toContain('/members');
 
     // Navigate to Settings
     await page.goto('/settings', { waitUntil: 'networkidle' });
@@ -285,20 +287,22 @@ test.describe('Admin UI Smoke Tests', () => {
   });
 
   test('Sidebar keeps each project section exactly once after scope hydration', async ({ page }) => {
-    await page.goto(`/projects/${PROJECT_ID}/database`, { waitUntil: 'networkidle' });
+    await page.goto('/database', { waitUntil: 'networkidle' });
     await page.waitForTimeout(1_000);
 
-    for (const label of ['Banco de Dados', 'Autenticação', 'Storage', 'Realtime', 'Security', 'APIs', 'Logs', 'Monitoramento']) {
+    for (const label of ['Banco de Dados', 'Autenticação', 'Storage', 'Realtime', 'Segurança', 'APIs', 'Logs', 'Observabilidade']) {
       await expect(page.getByRole('link', { name: label, exact: true }), `${label} must not be duplicated in the sidebar`).toHaveCount(1);
     }
   });
 
-  test('Selected project text remains white', async ({ page }) => {
+  test('Selected project text remains high-contrast', async ({ page }) => {
     await page.goto('/projects', { waitUntil: 'networkidle' });
 
-    const activeProject = page.getByRole('button', { name: 'Projeto Ativo', exact: true });
-    await expect(activeProject).toHaveCount(1);
-    await expect(activeProject).toHaveClass(/text-white/);
+    const activeProjectStatus = page.getByText('Projeto Ativo', { exact: true });
+    await expect(activeProjectStatus).toHaveCount(1);
+    const activeProjectButton = activeProjectStatus.locator('xpath=ancestor::button[1]');
+    await expect(activeProjectButton).toHaveCount(1);
+    await expect(activeProjectButton.locator('span.text-slate-100').first()).toBeVisible();
   });
 
   test('APIs page does not call unavailable legacy webhook routes', async ({ page }) => {
@@ -308,11 +312,14 @@ test.describe('Admin UI Smoke Tests', () => {
       if (/^\/api\/projects\/[^/]+\/webhooks$/.test(path)) legacyWebhookCalls.push(`${response.status()} ${path}`);
     });
 
-    await page.goto(`/projects/${PROJECT_ID}/apis`, { waitUntil: 'networkidle' });
+    await page.goto('/apis', { waitUntil: 'networkidle' });
     await page.waitForTimeout(1_000);
 
-    expect(legacyWebhookCalls, 'The real API screen must not call an unimplemented webhook endpoint').toEqual([]);
-    await expect(page.getByRole('button', { name: 'Webhooks & Gateways', exact: true })).toHaveCount(0);
+    const webhookTab = page.getByRole('button', { name: 'Webhooks & Gateways', exact: true });
+    await expect(webhookTab).toBeVisible();
+    await webhookTab.click();
+    await page.waitForTimeout(500);
+    expect(legacyWebhookCalls, 'Supported webhooks must never fall back to the removed project-scoped webhook endpoint').toEqual([]);
   });
 
   test('Documentation provides in-product secure integration guidance', async ({ page }) => {
@@ -331,7 +338,7 @@ test.describe('Admin UI Smoke Tests', () => {
   });
 
   test('Dashboard shows real data (never mock or error state)', async ({ page }) => {
-    await page.goto('/dashboard', { waitUntil: 'networkidle' });
+    await page.goto('/', { waitUntil: 'networkidle' });
     await page.waitForTimeout(2_000);
 
     // Check that no mock activity strings appear (these are unique to the old mock data)

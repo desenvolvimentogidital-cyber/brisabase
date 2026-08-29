@@ -26,6 +26,13 @@ function Assert-NativeCommand {
   }
 }
 
+function Assert-DisposableProject {
+  param([Parameter(Mandatory = $true)][string]$ProjectName)
+  if ($ProjectName -notin @('brisabase-release-local', 'brisabase-release-production')) {
+    throw "Refusing destructive Compose cleanup for non-disposable project '$ProjectName'."
+  }
+}
+
 function Wait-BrisaBaseReadiness {
   param(
     [Parameter(Mandatory = $true)][string]$Url,
@@ -83,6 +90,9 @@ try {
   $env:BRISABASE_REALTIME_PUBLIC_URL = "ws://127.0.0.1:$LocalApiPort/realtime/v1/websocket"
   $env:ADMIN_UI_URL = $LocalApiUrl
   $env:BRISABASE_API_URL = $LocalApiUrl
+  # Explicit opt-in only for this disposable local release stack. The Compose
+  # file defaults BACKUP_RESTORE_CERTIFIED to false outside this gate.
+  $env:BRISABASE_BACKUP_RESTORE_CERTIFIED = 'true'
 
   Write-Host "`n[1/8] Clean installation and non-container gates"
   npm ci
@@ -97,6 +107,11 @@ try {
   Write-Host "`n[2/8] Real local stack"
   docker @LocalComposeArgs config | Out-Null
   Assert-NativeCommand 'local Compose validation'
+  # A previous interrupted certification can leave named volumes behind. Reset
+  # only the fixed disposable project so every run truly starts from an empty DB.
+  Assert-DisposableProject -ProjectName $LocalProject
+  docker @LocalComposeArgs down --volumes --remove-orphans
+  Assert-NativeCommand 'local disposable pre-clean'
   $env:COMPOSE_PROJECT_NAME = $LocalProject
   $LocalStarted = $true
   docker @LocalComposeArgs up --detach --build
@@ -122,6 +137,8 @@ try {
   Assert-NativeCommand 'Docker load smoke'
 
   Write-Host "`n[4/8] Destructive restore and restart persistence"
+  node scripts/prepare-local-recovery-certification.cjs
+  Assert-NativeCommand 'local recovery certification precondition'
   $env:BRISABASE_RESTORE_DRILL = 'true'
   npm run test:docker:restore
   Assert-NativeCommand 'Docker restore drill'
@@ -142,7 +159,7 @@ try {
   # The production contract must run in a clean process environment. These
   # switches are valid only for the disposable local stack and are rejected by
   # the production validator when they leak into it.
-  foreach ($Name in @('BRISABASE_REAL_E2E', 'BRISABASE_LOAD_SMOKE', 'BRISABASE_RESTORE_DRILL', 'BRISABASE_REAL_RESTART_E2E', 'BRISABASE_TEST_RATE_LIMIT', 'BRISABASE_API_URL', 'ADMIN_UI_URL', 'ADMIN_BOOTSTRAP_TOKEN')) {
+  foreach ($Name in @('BRISABASE_REAL_E2E', 'BRISABASE_LOAD_SMOKE', 'BRISABASE_RESTORE_DRILL', 'BRISABASE_REAL_RESTART_E2E', 'BRISABASE_TEST_RATE_LIMIT', 'BRISABASE_API_URL', 'BRISABASE_BACKUP_RESTORE_CERTIFIED', 'ADMIN_UI_URL', 'ADMIN_BOOTSTRAP_TOKEN')) {
     Remove-Item "Env:$Name" -ErrorAction SilentlyContinue
   }
 
@@ -175,6 +192,9 @@ try {
   }
 
   Write-Host "`n[7/8] Final image, unprivileged PostgreSQL role and production behavior"
+  Assert-DisposableProject -ProjectName $ProductionProject
+  docker @ProductionComposeArgs down --volumes --remove-orphans
+  Assert-NativeCommand 'production disposable pre-clean'
   $ProductionStarted = $true
   docker @ProductionComposeArgs up --detach --build postgres redis minio minio-init mailpit brisabase
   if ($LASTEXITCODE -ne 0) {
@@ -216,7 +236,7 @@ try {
   if ($ProductionEnv -and (Test-Path -LiteralPath $ProductionEnv)) {
     Remove-Item -LiteralPath $ProductionEnv -Force
   }
-  foreach ($Name in @('COMPOSE_PROJECT_NAME', 'BRISABASE_REAL_E2E', 'BRISABASE_LOAD_SMOKE', 'BRISABASE_RESTORE_DRILL', 'BRISABASE_REAL_RESTART_E2E', 'BRISABASE_PRODUCTION_CONTRACT', 'BRISABASE_API_URL', 'ADMIN_UI_URL', 'ADMIN_BOOTSTRAP_TOKEN', 'BRISABASE_PORT', 'BRISABASE_POSTGRES_PORT', 'BRISABASE_REDIS_PORT', 'BRISABASE_MINIO_PORT', 'BRISABASE_MINIO_CONSOLE_PORT', 'BRISABASE_SMTP_PORT', 'BRISABASE_MAILPIT_PORT', 'BRISABASE_CORS_ALLOWED_ORIGIN', 'BRISABASE_PUBLIC_URL', 'BRISABASE_REALTIME_PUBLIC_URL', 'BRISABASE_HOMOLOGATION_PORT')) {
+  foreach ($Name in @('COMPOSE_PROJECT_NAME', 'BRISABASE_REAL_E2E', 'BRISABASE_LOAD_SMOKE', 'BRISABASE_RESTORE_DRILL', 'BRISABASE_REAL_RESTART_E2E', 'BRISABASE_PRODUCTION_CONTRACT', 'BRISABASE_API_URL', 'BRISABASE_BACKUP_RESTORE_CERTIFIED', 'ADMIN_UI_URL', 'ADMIN_BOOTSTRAP_TOKEN', 'BRISABASE_PORT', 'BRISABASE_POSTGRES_PORT', 'BRISABASE_REDIS_PORT', 'BRISABASE_MINIO_PORT', 'BRISABASE_MINIO_CONSOLE_PORT', 'BRISABASE_SMTP_PORT', 'BRISABASE_MAILPIT_PORT', 'BRISABASE_CORS_ALLOWED_ORIGIN', 'BRISABASE_PUBLIC_URL', 'BRISABASE_REALTIME_PUBLIC_URL', 'BRISABASE_HOMOLOGATION_PORT')) {
     Remove-Item "Env:$Name" -ErrorAction SilentlyContinue
   }
   if ($TranscriptStarted) {

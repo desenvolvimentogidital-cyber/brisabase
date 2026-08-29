@@ -14,7 +14,8 @@ if (!enabled) {
 }
 
 const apiUrl = (process.env.BRISABASE_API_URL || 'http://localhost:3000').replace(/\/$/, '');
-const mailpitUrl = (process.env.BRISABASE_MAILPIT_URL || 'http://127.0.0.1:8025').replace(/\/$/, '');
+const mailpitPort = process.env.BRISABASE_MAILPIT_PORT || '8025';
+const mailpitUrl = (process.env.BRISABASE_MAILPIT_URL || `http://127.0.0.1:${mailpitPort}`).replace(/\/$/, '');
 const projectId = process.env.BRISABASE_E2E_PROJECT_ID || 'proj_local_1';
 const environmentId = process.env.BRISABASE_E2E_ENVIRONMENT_ID || 'env_proj_local_1_development';
 const organizationId = process.env.BRISABASE_E2E_ORGANIZATION_ID || 'org_local_1';

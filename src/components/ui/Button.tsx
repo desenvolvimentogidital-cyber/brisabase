@@ -7,6 +7,8 @@ interface ButtonProps extends ButtonHTMLAttributes<HTMLButtonElement> {
   variant?: ButtonVariant;
   size?: 'sm' | 'md' | 'lg';
   isLoading?: boolean;
+  /** Compatibility alias for migrated views; prefer leftIcon for new code. */
+  icon?: ReactNode;
   leftIcon?: ReactNode;
   rightIcon?: ReactNode;
 }
@@ -16,6 +18,7 @@ export const Button: React.FC<ButtonProps> = ({
   variant = 'primary',
   size = 'md',
   isLoading = false,
+  icon,
   leftIcon,
   rightIcon,
   className = '',
@@ -54,8 +57,8 @@ export const Button: React.FC<ButtonProps> = ({
     >
       {isLoading ? (
         <Loader2 className="w-4 h-4 animate-spin text-current shrink-0" />
-      ) : leftIcon ? (
-        <span className="shrink-0">{leftIcon}</span>
+      ) : (leftIcon ?? icon) ? (
+        <span className="shrink-0">{leftIcon ?? icon}</span>
       ) : null}
       <span>{children}</span>
       {!isLoading && rightIcon ? <span className="shrink-0">{rightIcon}</span> : null}
