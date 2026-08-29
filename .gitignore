@@ -10,3 +10,4 @@ coverage/
 !.env.homologation.example
 !.env.hobby.example
 !.env.enterprise.example
+brisabase.targets.json
