@@ -13,6 +13,8 @@ const enterpriseEnv = read('.env.enterprise.example');
 const hobbyEnv = read('.env.hobby.example');
 const deployScript = read('scripts/deployment-profile.cjs');
 const profileValidator = read('scripts/validate-deployment-profile.cjs');
+const targetScript = read('scripts/target.cjs');
+const packageJson = JSON.parse(read('package.json'));
 const adminAuth = read('server/routes/adminAuth.ts');
 const realAuth = read('server/routes/realAuth.ts');
 const securityBaseline = read('docs/SECURITY_BASELINE.md');
@@ -60,7 +62,17 @@ assert.match(deployScript, /enterprise/);
 assert.match(deployScript, /validate-deployment-profile\.cjs/);
 assert.match(profileValidator, /enterprise requires TLS for PostgreSQL/);
 assert.match(profileValidator, /enterprise requires Redis TLS/);
-assert.match(profileValidator, /S3_ENDPOINT/);
+assert.match(profileValidator, /immutable sha256 digest/);
+assert.match(profileValidator, /Enterprise secrets must be distinct/);
+
+assert.match(targetScript, /Remote BrisaBase targets must use HTTPS/);
+assert.match(targetScript, /brisabase\.json/);
+assert.match(targetScript, /brisabase\.targets\.json/);
+assert.match(targetScript, /\/health\/required/);
+assert.match(targetScript, /Cannot remove active target/);
+assert.equal(packageJson.scripts.deployment, 'node scripts/deployment-profile.cjs');
+assert.equal(packageJson.scripts.target, 'node scripts/target.cjs');
+assert.equal(packageJson.scripts['test:deployment-profiles'], 'node server/tests/deployment-profile-contract.test.cjs');
 
 assert.match(securityBaseline, /distributed limiter/i);
 assert.match(securityBaseline, /Do not describe the bundled Compose as HA/);
