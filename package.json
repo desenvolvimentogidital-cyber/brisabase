@@ -26,7 +26,7 @@
     "test:docker:load": "node --import tsx server/tests/docker.load.test.ts",
     "test:docker:restore": "node --import tsx server/tests/docker.restore-drill.test.ts",
     "test:security": "node --import tsx server/tests/security-boundaries.test.ts && node --import tsx server/tests/fetch-metadata-security.test.ts && node --import tsx server/tests/admin-database-rls-contract.test.ts && node --import tsx server/tests/scoped-sql.test.ts && node --import tsx server/tests/database-function-opacity-contract.test.ts && node --import tsx server/tests/rcAudit.test.ts && node --import tsx server/tests/backup-certification-contract.test.ts && node --import tsx server/tests/postgres-recovery-tool-router-contract.test.ts && node --import tsx server/tests/platform-completion.test.ts && node server/tests/deployment-profile-contract.test.cjs && node server/tests/deployment-init-security.test.cjs",
-    "test:deployment-profiles": "node server/tests/deployment-profile-contract.test.cjs && node server/tests/deployment-init-security.test.cjs && node server/tests/cli-deployment-onboarding.test.cjs",
+    "test:deployment-profiles": "node server/tests/deployment-profile-contract.test.cjs && node server/tests/deployment-init-security.test.cjs",
     "test:cli-onboarding": "node server/tests/cli-deployment-onboarding.test.cjs",
     "test:ci": "npm run lint && npm run test:security && npm test && npm run build",
     "test:browser": "playwright test",
