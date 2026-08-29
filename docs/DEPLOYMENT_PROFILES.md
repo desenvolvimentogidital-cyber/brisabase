@@ -50,14 +50,23 @@ npm run deployment -- up self-hosted
 Audience: large companies and regulated environments that already operate managed databases, caches, object storage, ingress/WAF and centralized observability.
 
 Topology:
-- BrisaBase application container;
-- isolated Functions Executor container;
+- BrisaBase application container, suitable for replication by the customer's orchestrator;
 - external PostgreSQL over TLS;
 - external authenticated Redis over TLS;
 - external S3-compatible storage over HTTPS;
+- optional external Functions execution service over HTTPS;
 - optional bundled Caddy edge (`--profile edge`) or an existing corporate load balancer/WAF;
 - `managed` deployment mode and `ha` production tier;
-- no bundled PostgreSQL, Redis or MinIO service in `docker-compose.enterprise.yml`.
+- no bundled PostgreSQL, Redis, MinIO or single-node Functions Executor in `docker-compose.enterprise.yml`.
+
+The Enterprise profile deliberately does not label the single Functions container used by Hobby/Self-Hosted as HA. `FUNCTIONS_ENABLED=false` is the safe default. When a company deploys a replicated Functions plane behind its own internal/public HTTPS service, set:
+
+```bash
+FUNCTIONS_ENABLED=true
+FUNCTIONS_EXECUTOR_URL=https://functions.example.com
+FUNCTIONS_EXECUTOR_TOKEN=<unique-random-secret>
+FUNCTIONS_RPC_CALLBACK_ORIGIN=https://brisabase.example.com
+```
 
 Start:
 
@@ -122,6 +131,7 @@ Keep the same project IDs, migrations, REST/GraphQL contracts and SDK. Move infr
 | Bundled PostgreSQL | Yes | Yes | No |
 | Bundled Redis | Yes | Yes | No |
 | Bundled MinIO | Yes | Yes | No |
+| Bundled Functions executor | Yes | Yes | No; external HTTPS when enabled |
 | TLS required | No (loopback) | Yes | Yes |
 | Distributed Redis coordination | Local Redis | Bundled Redis | External Redis |
 | HA claim | No | No | Yes, infrastructure-dependent |
