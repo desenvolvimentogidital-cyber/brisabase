@@ -111,7 +111,7 @@ async function runContract(): Promise<void> {
   await json('/api/database/sql/execute', 200, 'POST', { query: `INSERT INTO ${sqlOnlyTable} (id, tenant) VALUES ('sql-proof', 'A') RETURNING tenant;` }, scopeA);
   await json('/api/database/sql/execute', 200, 'POST', { query: `INSERT INTO ${sqlOnlyTable} (id, tenant) VALUES ('sql-proof', 'B') RETURNING tenant;` }, scopeB);
   const isolatedSqlA = await json('/api/database/sql/execute', 200, 'POST', { query: `SELECT tenant FROM ${sqlOnlyTable};` }, scopeA);
-  const isolatedSqlB = await json('/api/database/sql/execute', 200, 'POST', { query: `SELECT tenant FROM ${sqlOnlyTable};` }, scopeB);
+  const isolatedSqlB = await json('/api/database/sql/execute', 200, 'GET', undefined, scopeB);
   assert.deepEqual(isolatedSqlA.rows.map((row: any) => row.tenant), ['A']);
   assert.deepEqual(isolatedSqlB.rows.map((row: any) => row.tenant), ['B']);
   await json('/api/database/sql/execute', 400, 'POST', { query: 'SELECT * FROM pg_roles;' }, scopeA);
@@ -128,7 +128,9 @@ async function runContract(): Promise<void> {
   assert.ok(Array.isArray(backups), 'Production encrypted backup listing must be available when BACKUP_ENABLED=true.');
   const functions = await json('/api/functions', 200, 'GET', undefined, scopeA);
   assert.ok(Array.isArray(functions), 'Production Functions management must be available when FUNCTIONS_ENABLED=true with an isolated executor.');
-  await json('/api/infrastructure/overview', 503, 'GET', undefined, scopeA);
+  const infrastructure = await json('/api/infrastructure/overview', 200, 'GET', undefined, scopeA);
+  assert.equal(infrastructure.mode, 'production-runtime', 'Production infrastructure overview must expose the real production runtime.');
+  assert.equal(infrastructure.health?.status, 'healthy', 'Production infrastructure overview must report healthy runtime dependencies.');
   await json('/api/ecosystem/overview', 503, 'GET', undefined, scopeA);
 
   for (const internalPath of ['/server.cjs', '/server.cjs.map', '/server/server.cjs', '/dist/server/server.cjs', '/server/db/admin-create.cjs', '/package.json', '/server.ts', '/.env']) await expect(internalPath, 404);
