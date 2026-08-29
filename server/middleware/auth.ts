@@ -53,7 +53,7 @@ export async function authenticateAdminToken(token: string): Promise<{ user: Adm
     adminAuthRepository.findSession(payload.session_id),
     adminAuthRepository.findUserById(payload.sub),
   ]);
-  if (!session || !user || user.status !== 'active') throw new Error('Administrative session is invalid or expired.');
+  if (!session || session.user_id !== payload.sub || !user || user.status !== 'active') throw new Error('Administrative session is invalid or expired.');
   return { user, sessionId: session.id, session };
 }
 
@@ -121,7 +121,7 @@ export async function authMiddleware(req: AuthenticatedRequest, res: Response, n
       if ((req.headers['x-project-id'] && req.headers['x-project-id'] !== payload.project_id) || (req.headers['x-environment-id'] && req.headers['x-environment-id'] !== payload.environment_id)) throw new Error('JWT scope does not match the requested project or environment.');
       const session = config.testMode ? authDatabase.findSessionById(payload.session_id) : await realAuthRepository.findSession(payload.session_id);
       const user = config.testMode ? authDatabase.findUserById(payload.sub) : await realAuthRepository.findUserById(payload.sub);
-      if (!session || session.project_id !== payload.project_id || session.environment_id !== payload.environment_id || !user || user.status === 'disabled' || user.status === 'banned') throw new Error('JWT session is no longer valid.');
+      if (!session || session.user_id !== payload.sub || session.project_id !== payload.project_id || session.environment_id !== payload.environment_id || !user || user.project_id !== payload.project_id || user.environment_id !== payload.environment_id || user.status === 'disabled' || user.status === 'banned') throw new Error('JWT session is no longer valid.');
       req.user = { id: payload.sub, email: payload.email, name: payload.email, role: payload.role };
       req.organizationId = project.organization_id;
       req.projectId = payload.project_id;

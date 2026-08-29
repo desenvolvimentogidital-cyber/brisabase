@@ -9,7 +9,7 @@ import { Modal } from '../ui/Modal';
 import { Input } from '../ui/Input';
 import { Button } from '../ui/Button';
 import { mockApi } from '../../services/mockApi';
-import { X, Sparkles, FolderPlus, Globe } from 'lucide-react';
+import { X, FolderPlus } from 'lucide-react';
 import { BrisaLogo } from '../BrisaLogo';
 
 export const AppLayout: React.FC<React.PropsWithChildren> = ({ children }) => {
@@ -63,7 +63,7 @@ export const AppLayout: React.FC<React.PropsWithChildren> = ({ children }) => {
   };
 
   return (
-    <div className="min-h-screen bg-[#020617] text-slate-100 flex flex-col font-sans selection:bg-cyan-500/30">
+    <div className="min-h-screen w-full max-w-full min-w-0 bg-[#020617] text-slate-100 flex flex-col font-sans selection:bg-cyan-500/30">
       {/* Desktop & Tablet Persistent Sidebar */}
       <div className="hidden lg:block">
         <Sidebar onOpenNewProject={() => setIsNewProjectModalOpen(true)} />
@@ -71,22 +71,23 @@ export const AppLayout: React.FC<React.PropsWithChildren> = ({ children }) => {
 
       {/* Mobile Drawer */}
       {mobileMenuOpen && (
-        <div className="fixed inset-0 z-50 lg:hidden flex">
+        <div className="fixed inset-0 z-50 lg:hidden flex max-w-full overflow-hidden">
           <div
             className="fixed inset-0 bg-[#020617]/80 backdrop-blur-md"
             onClick={() => setMobileMenuOpen(false)}
           />
-          <div className="relative w-72 bg-[#07111F] border-r border-white/10 flex flex-col h-full animate-in slide-in-from-left">
+          <div className="relative w-[min(18rem,calc(100vw-2rem))] max-w-full bg-[#07111F] border-r border-white/10 flex flex-col h-full animate-in slide-in-from-left">
             <div className="p-4 flex items-center justify-between border-b border-white/10">
               <BrisaLogo size="sm" showSlogan />
               <button
                 onClick={() => setMobileMenuOpen(false)}
                 className="text-slate-400 p-1.5 rounded-lg hover:bg-white/[0.06]"
+                aria-label={isEnglish ? 'Close navigation menu' : 'Fechar menu de navegação'}
               >
                 <X className="w-5 h-5" />
               </button>
             </div>
-            <div className="flex-1 overflow-y-auto" onClick={() => setMobileMenuOpen(false)}>
+            <div className="flex-1 min-w-0 overflow-y-auto overflow-x-hidden" onClick={() => setMobileMenuOpen(false)}>
               <Sidebar onOpenNewProject={() => setIsNewProjectModalOpen(true)} />
             </div>
           </div>
@@ -95,19 +96,19 @@ export const AppLayout: React.FC<React.PropsWithChildren> = ({ children }) => {
 
       {/* Main Content Area */}
       <div
-        className={`flex-1 flex flex-col min-w-0 transition-all duration-300 ${
+        className={`flex-1 flex flex-col w-full max-w-full min-w-0 transition-all duration-300 ${
           sidebarCollapsed ? 'lg:pl-20' : 'lg:pl-64'
         }`}
       >
         <Header onToggleMobileMenu={() => setMobileMenuOpen(true)} />
 
-        <main className="flex-1 p-3 sm:p-4 lg:p-5 w-full mx-auto">
+        <main className="flex-1 min-w-0 w-full max-w-full p-3 sm:p-4 lg:p-5 mx-auto">
           {runtimeError && (
-            <div className="mb-4 rounded-xl border border-amber-400/25 bg-amber-500/10 px-4 py-3 text-xs text-amber-100">
+            <div className="mb-4 max-w-full break-words rounded-xl border border-amber-400/25 bg-amber-500/10 px-4 py-3 text-xs text-amber-100">
               <strong>{runtimeMode === 'real' ? 'Runtime real:' : 'Mock:'}</strong> {runtimeError}
             </div>
           )}
-          {children ?? <Outlet />}
+          <div className="min-w-0 max-w-full">{children ?? <Outlet />}</div>
         </main>
       </div>
 
@@ -144,7 +145,7 @@ export const AppLayout: React.FC<React.PropsWithChildren> = ({ children }) => {
           </>
         }
       >
-        <form onSubmit={handleCreateProject} className="space-y-4">
+        <form onSubmit={handleCreateProject} className="space-y-4 min-w-0">
           <Input
             label={isEnglish ? 'Project Name' : 'Nome do Projeto'}
             placeholder={isEnglish ? 'e.g. BrisaStore Mobile, FoodExpress Web' : 'ex: BrisaStore Mobile, FoodExpress Web'}
@@ -159,7 +160,7 @@ export const AppLayout: React.FC<React.PropsWithChildren> = ({ children }) => {
               {isEnglish ? 'Description (Optional)' : 'Descrição (Opcional)'}
             </label>
             <textarea
-              className="w-full rounded-xl bg-[#07111F] border border-white/10 text-slate-100 placeholder:text-slate-500 text-sm p-3 focus:outline-none focus:border-cyan-400 focus:ring-2 focus:ring-cyan-400/20 resize-none h-20"
+              className="w-full max-w-full rounded-xl bg-[#07111F] border border-white/10 text-slate-100 placeholder:text-slate-500 text-sm p-3 focus:outline-none focus:border-cyan-400 focus:ring-2 focus:ring-cyan-400/20 resize-none h-20"
               placeholder={isEnglish ? 'Describe the purpose of this project or service...' : 'Descreva o propósito deste projeto ou serviço...'}
               value={projDesc}
               onChange={(e) => setProjDesc(e.target.value)}
@@ -170,11 +171,11 @@ export const AppLayout: React.FC<React.PropsWithChildren> = ({ children }) => {
             <label className="block text-xs font-semibold text-slate-300 mb-1.5">
               {isEnglish ? 'Project Region' : 'Região do Projeto'}
             </label>
-            <div className="relative">
+            <div className="relative min-w-0">
               <select
                 value={projRegion}
                 onChange={(e) => setProjRegion(e.target.value)}
-                className="w-full rounded-xl bg-[#07111F] border border-white/10 text-slate-100 text-sm px-3 py-2.5 appearance-none focus:outline-none focus:border-cyan-400 focus:ring-2 focus:ring-cyan-400/20"
+                className="w-full max-w-full rounded-xl bg-[#07111F] border border-white/10 text-slate-100 text-sm px-3 py-2.5 appearance-none focus:outline-none focus:border-cyan-400 focus:ring-2 focus:ring-cyan-400/20"
               >
                 <option value="sa-east-1 (São Paulo)">🇧🇷 {isEnglish ? 'South America (São Paulo - sa-east-1)' : 'América do Sul (São Paulo - sa-east-1)'}</option>
                 <option value="us-east-1 (N. Virginia)">🇺🇸 {isEnglish ? 'US East (N. Virginia - us-east-1)' : 'EUA Leste (N. Virginia - us-east-1)'}</option>
@@ -182,7 +183,7 @@ export const AppLayout: React.FC<React.PropsWithChildren> = ({ children }) => {
                 <option value="ap-southeast-1 (Singapore)">🇸🇬 {isEnglish ? 'Asia (Singapore - ap-southeast-1)' : 'Ásia (Singapura - ap-southeast-1)'}</option>
               </select>
             </div>
-            <p className="text-[11px] text-slate-500 mt-1">
+            <p className="text-[11px] text-slate-500 mt-1 break-words">
               {isEnglish ? 'The region is project metadata in the current runtime; managed multi-region provisioning is not enabled yet.' : 'A região é um metadado do projeto no runtime atual; o provisionamento gerenciado multi-região ainda não está habilitado.'}
             </p>
           </div>

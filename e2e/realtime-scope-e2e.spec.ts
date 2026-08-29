@@ -109,8 +109,13 @@ test.describe('Realtime Authentication and Scope E2E', () => {
       'x-project-id': activeScope.projectId,
       'x-environment-id': activeScope.environmentId,
     };
-    const tableCleanup = await fetch(`${API_URL}/api/database/tables/${table}`, { method: 'DELETE', headers: adminProjectHeaders });
-    expect([204, 404]).toContain(tableCleanup.status);
+    const encodedTable = encodeURIComponent(table);
+    const tableCleanup = await fetch(`${API_URL}/api/database/tables/${encodedTable}?confirm=${encodedTable}`, {
+      method: 'DELETE',
+      headers: adminProjectHeaders,
+    });
+    const tableCleanupBody = await responsePayload(tableCleanup);
+    expect([200, 404], `Realtime table cleanup failed: ${JSON.stringify(tableCleanupBody)}`).toContain(tableCleanup.status);
     const projectCleanup = await fetch(`${API_URL}/api/projects/${activeScope.projectId}`, {
       method: 'DELETE',
       headers: { ...activeScope.organizationHeaders, 'x-project-id': activeScope.projectId },

@@ -24,20 +24,20 @@ export const Tabs: React.FC<TabsProps> = ({
 }) => {
   if (variant === 'pills') {
     return (
-      <div className={`flex items-center gap-1.5 p-1 bg-[#0B1628] rounded-xl border border-white/[0.08] ${className}`}>
+      <div className={`min-w-0 max-w-full overflow-x-auto flex items-center gap-1.5 p-1 bg-[#0B1628] rounded-xl border border-white/[0.08] ${className}`}>
         {tabs.map((tab) => {
           const isActive = tab.id === activeTab;
           return (
             <button
               key={tab.id}
               onClick={() => onChange(tab.id)}
-              className={`flex items-center gap-2 px-3.5 py-1.5 rounded-lg text-xs font-semibold transition-all duration-150 ${
+              className={`shrink-0 whitespace-nowrap flex items-center gap-2 px-3.5 py-1.5 rounded-lg text-xs font-semibold transition-all duration-150 ${
                 isActive
                   ? 'bg-[#1677FF] text-white shadow-md shadow-[#1677FF]/30'
                   : 'text-slate-400 hover:text-slate-200 hover:bg-white/[0.04]'
               }`}
             >
-              {tab.icon && <span className="w-3.5 h-3.5">{tab.icon}</span>}
+              {tab.icon && <span className="w-3.5 h-3.5 shrink-0">{tab.icon}</span>}
               <span>{tab.label}</span>
               {tab.count !== undefined && (
                 <span
@@ -56,20 +56,20 @@ export const Tabs: React.FC<TabsProps> = ({
   }
 
   return (
-    <div className={`border-b border-white/[0.08] flex items-center gap-6 overflow-x-auto ${className}`}>
+    <div className={`min-w-0 max-w-full border-b border-white/[0.08] flex items-center gap-6 overflow-x-auto ${className}`}>
       {tabs.map((tab) => {
         const isActive = tab.id === activeTab;
         return (
           <button
             key={tab.id}
             onClick={() => onChange(tab.id)}
-            className={`flex items-center gap-2 py-3 text-sm font-medium border-b-2 transition-all duration-150 whitespace-nowrap ${
+            className={`shrink-0 flex items-center gap-2 py-3 text-sm font-medium border-b-2 transition-all duration-150 whitespace-nowrap ${
               isActive
                 ? 'border-cyan-400 text-cyan-400 font-semibold'
                 : 'border-transparent text-slate-400 hover:text-slate-200 hover:border-slate-700'
             }`}
           >
-            {tab.icon && <span className="w-4 h-4">{tab.icon}</span>}
+            {tab.icon && <span className="w-4 h-4 shrink-0">{tab.icon}</span>}
             <span>{tab.label}</span>
             {tab.count !== undefined && (
               <span
