@@ -1,6 +1,8 @@
 const assert = require('node:assert/strict');
 const fs = require('node:fs');
+const os = require('node:os');
 const path = require('node:path');
+const { spawnSync } = require('node:child_process');
 
 const root = path.resolve(__dirname, '..', '..');
 const read = (file) => fs.readFileSync(path.join(root, file), 'utf8');
@@ -73,6 +75,38 @@ assert.match(targetScript, /Cannot remove active target/);
 assert.equal(packageJson.scripts.deployment, 'node scripts/deployment-profile.cjs');
 assert.equal(packageJson.scripts.target, 'node scripts/target.cjs');
 assert.equal(packageJson.scripts['test:deployment-profiles'], 'node server/tests/deployment-profile-contract.test.cjs');
+
+const hobbyValidation = spawnSync(process.execPath, [path.join(root, 'scripts/validate-deployment-profile.cjs'), 'hobby', path.join(root, '.env.hobby.example')], { encoding: 'utf8' });
+assert.equal(hobbyValidation.status, 0, hobbyValidation.stderr);
+assert.match(hobbyValidation.stdout, /"topology":"local-bundled"/);
+
+const targetTemp = fs.mkdtempSync(path.join(os.tmpdir(), 'brisabase-target-test-'));
+try {
+  fs.writeFileSync(path.join(targetTemp, 'brisabase.json'), JSON.stringify({ projectId: 'project_test', environmentId: 'env_test', url: 'http://localhost:3000' }, null, 2));
+  const targetExecutable = path.join(root, 'scripts/target.cjs');
+  const runTarget = (...args) => spawnSync(process.execPath, [targetExecutable, ...args], { cwd: targetTemp, encoding: 'utf8' });
+
+  const addLocal = runTarget('add', 'local', 'http://localhost:3000');
+  assert.equal(addLocal.status, 0, addLocal.stderr);
+
+  const rejectRemoteHttp = runTarget('add', 'unsafe', 'http://baas.example.com');
+  assert.notEqual(rejectRemoteHttp.status, 0, 'remote HTTP target must be rejected');
+  assert.match(rejectRemoteHttp.stderr, /must use HTTPS/);
+
+  const addRemote = runTarget('add', 'empresa', 'https://baas.example.com');
+  assert.equal(addRemote.status, 0, addRemote.stderr);
+  const useRemote = runTarget('use', 'empresa');
+  assert.equal(useRemote.status, 0, useRemote.stderr);
+
+  const switchedProject = JSON.parse(fs.readFileSync(path.join(targetTemp, 'brisabase.json'), 'utf8'));
+  const targets = JSON.parse(fs.readFileSync(path.join(targetTemp, 'brisabase.targets.json'), 'utf8'));
+  assert.equal(switchedProject.url, 'https://baas.example.com');
+  assert.equal(targets.active, 'empresa');
+  assert.equal(targets.targets.local.url, 'http://localhost:3000');
+  assert.equal(targets.targets.empresa.url, 'https://baas.example.com');
+} finally {
+  fs.rmSync(targetTemp, { recursive: true, force: true });
+}
 
 assert.match(securityBaseline, /distributed limiter/i);
 assert.match(securityBaseline, /Do not describe the bundled Compose as HA/);
