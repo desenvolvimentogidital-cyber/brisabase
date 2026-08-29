@@ -134,13 +134,13 @@ async function init(selected) {
     created: true,
     generatedSecrets: prepared.generated,
     next: selected.name === 'hobby'
-      ? `npm run deployment -- up ${selected.name}`
-      : `Review ${selected.envFile}, configure domains/images/external credentials, then run npm run deployment -- doctor ${selected.name}`,
+      ? 'brisabase up'
+      : `Review ${selected.envFile}, configure domains/images/external credentials, then run brisabase deployment doctor ${selected.name}`,
   });
 }
 
 async function doctor(selected) {
-  if (!await exists(selected.envFile)) throw new Error(`${selected.envFile} was not found. Run npm run deployment -- init ${selected.name}.`);
+  if (!await exists(selected.envFile)) throw new Error(`${selected.envFile} was not found. Run brisabase deployment init ${selected.name}.`);
   run('docker', ['version'], { capture: true });
   run('docker', ['compose', 'version'], { capture: true });
   run(process.execPath, ['scripts/validate-deployment-profile.cjs', selected.name, selected.envFile]);
@@ -184,7 +184,7 @@ async function logs(selected) {
 }
 
 function help() {
-  print(`BrisaBase Deployment Profiles\n\nUsage:\n  npm run deployment -- init [hobby|self-hosted|enterprise]\n  npm run deployment -- doctor [profile]\n  npm run deployment -- up [profile]\n  npm run deployment -- down [profile]\n  npm run deployment -- status [profile]\n  npm run deployment -- logs [profile]\n\nProfiles:\n  hobby        Local Docker stack for beginners and prototypes\n  self-hosted  Single-server production deployment\n  enterprise   External PostgreSQL/Redis/S3 with Docker application planes\n\nInit behavior:\n  Hobby is ready with local-only development defaults. Self-Hosted and Enterprise\n  generate independent BrisaBase secrets automatically; domains, immutable images\n  and externally managed infrastructure credentials still require operator input.`);
+  print(`BrisaBase Deployment Profiles\n\nUsage:\n  brisabase deployment init [hobby|self-hosted|enterprise]\n  brisabase deployment doctor [profile]\n  brisabase deployment up [profile]\n  brisabase deployment down [profile]\n  brisabase deployment status [profile]\n  brisabase deployment logs [profile]\n\nFriendly shortcut:\n  brisabase up                    Equivalent to: brisabase deployment up hobby\n\nProfiles:\n  hobby        Local Docker stack for beginners and prototypes\n  self-hosted  Single-server production deployment\n  enterprise   External PostgreSQL/Redis/S3 with Docker application planes\n\nInit behavior:\n  Hobby is ready with local-only development defaults. Self-Hosted and Enterprise\n  generate independent BrisaBase secrets automatically; domains, immutable images\n  and externally managed infrastructure credentials still require operator input.\n\nCompatibility:\n  The npm run deployment -- ... script remains available for repository maintainers.`);
 }
 
 async function main() {
