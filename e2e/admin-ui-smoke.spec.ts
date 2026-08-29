@@ -295,12 +295,14 @@ test.describe('Admin UI Smoke Tests', () => {
     }
   });
 
-  test('Selected project text remains white', async ({ page }) => {
+  test('Selected project text remains high-contrast', async ({ page }) => {
     await page.goto('/projects', { waitUntil: 'networkidle' });
 
-    const activeProject = page.getByRole('button', { name: 'Projeto Ativo', exact: true });
-    await expect(activeProject).toHaveCount(1);
-    await expect(activeProject).toHaveClass(/text-white/);
+    const activeProjectStatus = page.getByText('Projeto Ativo', { exact: true });
+    await expect(activeProjectStatus).toHaveCount(1);
+    const activeProjectButton = activeProjectStatus.locator('xpath=ancestor::button[1]');
+    await expect(activeProjectButton).toHaveCount(1);
+    await expect(activeProjectButton.locator('span.text-slate-100').first()).toBeVisible();
   });
 
   test('APIs page does not call unavailable legacy webhook routes', async ({ page }) => {
