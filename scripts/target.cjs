@@ -84,7 +84,7 @@ async function remove(name) {
 async function doctor(name) {
   const current = await state();
   const selected = current.targets[name || current.active];
-  if (!selected) throw new Error('No active target. Add one with npm run target -- add local http://localhost:3000.');
+  if (!selected) throw new Error('No active target. Add one with brisabase target add local http://localhost:3000.');
   const base = normalizedUrl(selected.url);
   const response = await fetch(`${base}/health/required`, { signal: AbortSignal.timeout(5000) }).catch((error) => ({ ok: false, status: 0, error }));
   if (!response.ok) throw new Error(`Target ${base} is unreachable or unhealthy (${response.status || 'network error'}).`);
@@ -93,7 +93,7 @@ async function doctor(name) {
 }
 
 function help() {
-  print(`BrisaBase Targets\n\nUsage:\n  npm run target -- add <name> <url>\n  npm run target -- use <name>\n  npm run target -- list\n  npm run target -- remove <name>\n  npm run target -- doctor [name]\n\nExamples:\n  npm run target -- add local http://localhost:3000\n  npm run target -- add empresa https://baas.empresa.com\n  npm run target -- use empresa`);
+  print(`BrisaBase Targets\n\nUsage:\n  brisabase target add <name> <url>\n  brisabase target use <name>\n  brisabase target list\n  brisabase target remove <name>\n  brisabase target doctor [name]\n\nExamples:\n  brisabase target add local http://localhost:3000\n  brisabase target add empresa https://baas.empresa.com\n  brisabase target use empresa\n\nCompatibility:\n  The npm run target -- ... script remains available for repository maintainers.`);
 }
 
 async function main() {

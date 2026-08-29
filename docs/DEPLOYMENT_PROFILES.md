@@ -2,6 +2,19 @@
 
 BrisaBase uses one application codebase and one public API surface across deployment sizes. Profiles change topology and operational guarantees; they do not change project schemas or SDK contracts.
 
+## CLI-first onboarding
+
+The official `brisabase` command is the recommended entrypoint for deployment profiles and named targets. Repository-maintainer scripts such as `npm run deployment -- ...` and `npm run target -- ...` remain available for compatibility, but user-facing examples use the CLI directly.
+
+For the simplest local path:
+
+```bash
+brisabase deployment init hobby
+brisabase up
+```
+
+`brisabase up` is intentionally a Hobby-only shortcut. Use `brisabase deployment up <profile>` for Self-Hosted or Enterprise so a production topology is always explicit.
+
 ## 1. Hobby / Local
 
 Audience: beginners, students, prototypes and personal projects.
@@ -16,8 +29,10 @@ Topology:
 Start:
 
 ```bash
-npm run deployment -- init hobby
-npm run deployment -- up hobby
+brisabase deployment init hobby
+brisabase up
+# Equivalent explicit form:
+brisabase deployment up hobby
 ```
 
 The generated `.env.hobby` is intentionally local-only. Do not expose the Hobby stack directly to the internet.
@@ -37,11 +52,11 @@ Topology:
 Start:
 
 ```bash
-npm run deployment -- init self-hosted
+brisabase deployment init self-hosted
 # BrisaBase secrets are generated automatically with independent random values.
 # Configure domains and immutable image digests in .env.production.
-npm run deployment -- doctor self-hosted
-npm run deployment -- up self-hosted
+brisabase deployment doctor self-hosted
+brisabase deployment up self-hosted
 ```
 
 `deployment init` writes the generated production environment with restrictive file permissions where the operating system supports them. It does not print generated secret values to the console.
@@ -76,11 +91,11 @@ FUNCTIONS_RPC_CALLBACK_ORIGIN=https://brisabase.example.com
 Start:
 
 ```bash
-npm run deployment -- init enterprise
+brisabase deployment init enterprise
 # BrisaBase-owned secrets are generated automatically.
 # Configure PostgreSQL/Redis/S3 credentials, domains and immutable images.
-npm run deployment -- doctor enterprise
-npm run deployment -- up enterprise
+brisabase deployment doctor enterprise
+brisabase deployment up enterprise
 ```
 
 The application credential and migration credential must be different accounts in real enterprise infrastructure. `DATABASE_MIGRATION_URL` is consumed only by the migration service; it is intentionally absent from the application container.
@@ -96,11 +111,11 @@ docker compose --env-file .env.enterprise -f docker-compose.enterprise.yml --pro
 `brisabase.json` contains the API URL used by the CLI. Named targets preserve several safe origins and switch that URL without moving credentials into the target file.
 
 ```bash
-npm run target -- add local http://localhost:3000
-npm run target -- add empresa https://baas.empresa.com
-npm run target -- list
-npm run target -- use empresa
-npm run target -- doctor empresa
+brisabase target add local http://localhost:3000
+brisabase target add empresa https://baas.empresa.com
+brisabase target list
+brisabase target use empresa
+brisabase target doctor empresa
 ```
 
 Remote targets must use HTTPS. URLs containing usernames, passwords, query strings or fragments are rejected. `brisabase.targets.json` contains only target names and URLs and is ignored by Git so workstation-specific target state is not committed accidentally. The stored admin session remains in the CLI session store.
