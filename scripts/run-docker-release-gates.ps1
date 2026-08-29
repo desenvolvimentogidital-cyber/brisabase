@@ -14,6 +14,7 @@ $ProductionComposeArgs = @()
 
 Set-Location $ProjectRoot
 New-Item -ItemType Directory -Force -Path (Join-Path $ProjectRoot 'test-results') | Out-Null
+New-Item -ItemType Directory -Force -Path (Join-Path $ProjectRoot 'artifacts') | Out-Null
 $Timestamp = (Get-Date).ToUniversalTime().ToString('yyyyMMddTHHmmssZ')
 $ValidationLog = Join-Path $ProjectRoot "test-results\release-validation-$Timestamp.log"
 Start-Transcript -Path $ValidationLog -Force | Out-Null
@@ -97,6 +98,12 @@ try {
   Write-Host "`n[1/8] Clean installation and non-container gates"
   npm ci
   Assert-NativeCommand 'npm ci'
+  npm run release:manifest:verify
+  Assert-NativeCommand 'source manifest verification'
+  npm run release:evidence
+  Assert-NativeCommand 'release evidence generation'
+  node scripts/generate-sbom.cjs --output artifacts/brisabase.cdx.json
+  Assert-NativeCommand 'CycloneDX SBOM generation'
   npm audit --audit-level=low
   Assert-NativeCommand 'npm audit'
   npm audit --omit=dev --audit-level=low
@@ -149,8 +156,8 @@ try {
   Write-Host "`n[5/8] Browser against the real control plane"
   npx playwright install chromium
   Assert-NativeCommand 'Playwright Chromium installation'
-  npx playwright test e2e/admin-ui-smoke.spec.ts --project=desktop
-  Assert-NativeCommand 'Playwright production UI smoke'
+  npm run test:browser
+  Assert-NativeCommand 'Playwright browser matrix'
 
   docker @LocalComposeArgs down --volumes --remove-orphans
   Assert-NativeCommand 'local Compose cleanup'
@@ -182,6 +189,7 @@ try {
   $ProductionImages = docker @ProductionComposeArgs config --images | Out-String
   Assert-NativeCommand 'production Compose image validation'
   Write-Host $ProductionImages
+  [System.IO.File]::WriteAllText((Join-Path $ProjectRoot 'artifacts/container-images.txt'), $ProductionImages, (New-Object System.Text.UTF8Encoding($false)))
   if ([regex]::Matches($ProductionImages, '@sha256:').Count -lt 5) {
     throw 'Production requires at least five service images pinned by digest.'
   }

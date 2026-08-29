@@ -1,6 +1,7 @@
 /* eslint-disable no-console */
 const fs = require('node:fs');
 const path = require('node:path');
+const { isSemVerAtLeast } = require('./semver.cjs');
 const root = path.resolve(__dirname, '..');
 const failures = [];
 const read = (file) => fs.readFileSync(path.join(root, file), 'utf8');
@@ -12,8 +13,7 @@ const required = [
 for (const file of required) if (!fs.existsSync(path.join(root,file))) failures.push(`missing Phase 2 file: ${file}`);
 const pkg = JSON.parse(read('package.json'));
 const sdk = JSON.parse(read('developer/sdk/package.json'));
-const [major,minor,patch] = pkg.version.split('.').map(Number);
-if (major < 0 || (major === 0 && minor < 4) || [major,minor,patch].some((value)=>!Number.isFinite(value))) failures.push('platform version must be Phase 2 (0.4.0) or newer');
+if (!isSemVerAtLeast(pkg.version, '0.4.0')) failures.push('platform version must be valid SemVer and Phase 2 (0.4.0) or newer');
 if (sdk.version !== pkg.version) failures.push('SDK version must match platform');
 if (!read('developer/cli/brisabase.mjs').includes(`const VERSION = '${pkg.version}'`)) failures.push('CLI version must match platform');
 const scoped = read('server/db/scopedSql.ts');

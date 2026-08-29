@@ -5,7 +5,7 @@ import { homedir } from 'node:os';
 import path from 'node:path';
 import { spawn } from 'node:child_process';
 
-const VERSION = '1.0.0';
+const VERSION = '1.0.1-beta.1';
 const cwd = process.cwd();
 const configPath = path.join(cwd, 'brisabase.json');
 const sessionPath = path.join(homedir(), '.brisabase', 'session.json');

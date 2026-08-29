@@ -11,7 +11,7 @@ LOCAL_STARTED=false
 PRODUCTION_STARTED=false
 
 cd "$PROJECT_ROOT"
-mkdir -p test-results
+mkdir -p artifacts test-results
 VALIDATION_TIMESTAMP="$(date -u +%Y%m%dT%H%M%SZ)"
 VALIDATION_LOG="$PROJECT_ROOT/test-results/release-validation-$VALIDATION_TIMESTAMP.log"
 exec > >(tee "$VALIDATION_LOG") 2>&1
@@ -99,6 +99,9 @@ export BRISABASE_BACKUP_RESTORE_CERTIFIED=true
 
 printf '\n[1/8] Instalação limpa e gates sem containers\n'
 npm ci
+npm run release:manifest:verify
+npm run release:evidence
+node scripts/generate-sbom.cjs --output artifacts/brisabase.cdx.json
 npm audit --audit-level=low
 npm audit --omit=dev --audit-level=low
 npm run test:ci
@@ -139,9 +142,9 @@ ADMIN_BOOTSTRAP_TOKEN=local-bootstrap-token-for-isolated-e2e-only-2026 \
 npm run test:docker:restart
 
 printf '\n[5/8] Navegador contra o control plane real\n'
-npx playwright install chromium
+npx playwright install --with-deps chromium
 ADMIN_BOOTSTRAP_TOKEN=local-bootstrap-token-for-isolated-e2e-only-2026 \
-npx playwright test e2e/admin-ui-smoke.spec.ts --project=desktop
+npm run test:browser
 
 "${LOCAL_COMPOSE[@]}" down --volumes --remove-orphans
 LOCAL_STARTED=false
@@ -158,6 +161,7 @@ node scripts/validate-production-env.cjs "$PRODUCTION_ENV"
 PRODUCTION_COMPOSE=(docker compose --project-name "$PRODUCTION_PROJECT" --env-file "$PRODUCTION_ENV" -f docker-compose.production.yml -f docker-compose.homologation.yml)
 PRODUCTION_IMAGES="$("${PRODUCTION_COMPOSE[@]}" config --images)"
 printf '%s\n' "$PRODUCTION_IMAGES"
+printf '%s\n' "$PRODUCTION_IMAGES" > artifacts/container-images.txt
 if [[ "$(grep -c '@sha256:' <<< "$PRODUCTION_IMAGES")" -lt 5 ]]; then
   printf 'O contrato exige pelo menos cinco imagens de serviço fixadas por digest.\n' >&2
   exit 1

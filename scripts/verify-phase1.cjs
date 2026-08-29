@@ -1,6 +1,7 @@
 /* eslint-disable no-console */
 const fs = require('node:fs');
 const path = require('node:path');
+const { isSemVerAtLeast } = require('./semver.cjs');
 
 const root = path.resolve(__dirname, '..');
 const requiredFiles = [
@@ -14,7 +15,7 @@ const requiredFiles = [
 const failures = [];
 for (const file of requiredFiles) if (!fs.existsSync(path.join(root, file))) failures.push(`missing required file: ${file}`);
 
-const ignored = new Set(['node_modules', 'dist', 'test-results', '.git']);
+const ignored = new Set(['node_modules', 'dist', 'artifacts', 'coverage', 'playwright-report', 'test-results', '.git']);
 const textFiles = [];
 function walk(directory) {
   for (const entry of fs.readdirSync(directory, { withFileTypes: true })) {
@@ -45,8 +46,7 @@ if (/back[ _-]?forge|backforge/i.test(sdkDist)) failures.push('generated SDK dis
 const pkg = JSON.parse(fs.readFileSync(path.join(root, 'package.json'), 'utf8'));
 const sdk = JSON.parse(fs.readFileSync(path.join(root, 'developer/sdk/package.json'), 'utf8'));
 if (pkg.name !== 'brisabase') failures.push('root package name must be brisabase');
-const [major,minor,patch] = String(pkg.version || '0.0.0').split('.').map(Number);
-if (major < 0 || (major === 0 && minor < 3) || [major,minor,patch].some((value) => !Number.isFinite(value))) failures.push('root package version must be Phase 1 (0.3.0) or newer');
+if (!isSemVerAtLeast(pkg.version, '0.3.0')) failures.push('root package version must be valid SemVer and Phase 1 (0.3.0) or newer');
 if (sdk.name !== '@brisabase/js') failures.push('SDK package must be @brisabase/js');
 if (sdk.version !== pkg.version) failures.push('SDK and platform versions must match');
 if (pkg.scripts?.['release:validate:docker'] !== 'node scripts/run-docker-release-gates.cjs') failures.push('release:validate:docker script is missing');

@@ -1,4 +1,4 @@
-const fs=require('fs');const path=require('path');const root=path.resolve(__dirname,'..');
+const fs=require('fs');const path=require('path');const {isSemVerAtLeast}=require('./semver.cjs');const root=path.resolve(__dirname,'..');
 const read=p=>fs.readFileSync(path.join(root,p),'utf8');
 const exists=p=>{if(!fs.existsSync(path.join(root,p)))throw new Error(`Missing ${p}`);};
 const must=(p,needles)=>{const s=read(p);for(const n of needles)if(!s.includes(n))throw new Error(`${p} missing: ${n}`);};
@@ -9,7 +9,7 @@ for(const f of [
   'docs/legal/TERMS_TEMPLATE.md','docs/legal/PRIVACY_TEMPLATE.md','docs/SECURITY.md','docs/SUPPORT.md','docs/PRICING.md','docs/GO_LIVE_CHECKLIST.md',
   'PHASE8_COMPLETION.md'
 ]) exists(f);
-const pkg=JSON.parse(read('package.json'));if(pkg.version!=='1.0.0')throw new Error(`Phase 8 release must be 1.0.0, got ${pkg.version}`);
+const pkg=JSON.parse(read('package.json'));if(!isSemVerAtLeast(pkg.version,'1.0.0'))throw new Error(`Phase 8 platform version must be valid SemVer and 1.0.0 or newer, got ${pkg.version}`);
 const sdk=JSON.parse(read('developer/sdk/package.json'));if(sdk.version!==pkg.version)throw new Error('SDK version must match platform.');
 if(!read('developer/cli/brisabase.mjs').includes(`const VERSION = '${pkg.version}'`))throw new Error('CLI version must match platform.');
 

@@ -1,5 +1,6 @@
 const fs = require('fs');
 const path = require('path');
+const { isSemVerAtLeast } = require('./semver.cjs');
 const root = path.resolve(__dirname, '..');
 const read = (p) => fs.readFileSync(path.join(root, p), 'utf8');
 const exists = (p) => { if (!fs.existsSync(path.join(root, p))) throw new Error(`Missing ${p}`); };
@@ -8,8 +9,7 @@ const must = (p, needles) => { const source = read(p); for (const needle of need
 exists('server/db/migrations/021_backup_hosting_infrastructure_phase6.sql');
 const pkg = JSON.parse(read('package.json'));
 const sdk = JSON.parse(read('developer/sdk/package.json'));
-const [major, minor, patch] = String(pkg.version || '0.0.0').split('.').map(Number);
-if (major < 0 || (major === 0 && minor < 8) || [major, minor, patch].some((value) => !Number.isFinite(value))) throw new Error(`Phase 6 platform version must be 0.8.0 or newer, got ${pkg.version}`);
+if (!isSemVerAtLeast(pkg.version, '0.8.0')) throw new Error(`Phase 6 platform version must be valid SemVer and 0.8.0 or newer, got ${pkg.version}`);
 if (sdk.version !== pkg.version) throw new Error('SDK version must match platform.');
 if (!read('developer/cli/brisabase.mjs').includes(`const VERSION = '${pkg.version}'`)) throw new Error('CLI version must match platform.');
 

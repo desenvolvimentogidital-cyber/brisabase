@@ -1,10 +1,10 @@
-# BrisaBase 1.0.0 — release funcional das Fases 1–8
+# BrisaBase 1.0.1-beta.1 — candidato beta das Fases 1–8
 
 BrisaBase é um BaaS baseado em PostgreSQL com console visual e runtime real para Database, Authentication, Storage, Realtime, Webhooks, Functions, REST, GraphQL, Backup, Hosting, infraestrutura operacional, Remote Config, Feature Flags, Experiments, Product Analytics, App Quality, Search/Vector/RAG, AI Gateway, Messaging multicanal, Billing, Enterprise e Infrastructure as Code.
 
 ## Advanced Platform — Fase 7
 
-A versão **1.0.0** fecha as oito fases de implementação. Billing comercial é provider-aware, Enterprise adiciona SSO/SCIM/RBAC/SIEM/políticas e IaC oferece manifests com checksum e drift detection. Recursos externos só são considerados ativos quando seus providers e credenciais reais estão configurados.
+A base **1.0.0** fecha as oito fases de implementação; **1.0.1-beta.1** prepara a certificação e distribuição do beta sem mover a tag anterior. Billing comercial é provider-aware, Enterprise adiciona SSO/SCIM/RBAC/SIEM/políticas e IaC oferece manifests com checksum e drift detection. Recursos externos só são considerados ativos quando seus providers e credenciais reais estão configurados.
 
 ### Experiments e configuração dinâmica
 
@@ -190,3 +190,5 @@ npm run release:validate:docker
 `BILLING_PROVIDER=disabled` mantém instalações self-hosted sem cobrança externa. Quando Stripe é habilitado, checkout/portal/invoices/refunds passam pelo provedor e os webhooks usam assinatura e idempotência. Enterprise oferece domínio verificado, OIDC/SAML Gateway, SCIM, custom roles, IP allowlist, SIEM e evidências técnicas de compliance. IaC exporta manifests com checksum canônico e drift detection.
 
 Antes de lançamento público, revise `docs/legal/TERMS_TEMPLATE.md`, `docs/legal/PRIVACY_TEMPLATE.md` e complete `docs/GO_LIVE_CHECKLIST.md`.
+
+O processo de beta está documentado em `docs/BETA_POLICY.md`, `docs/RELEASE_PROCESS.md`, `docs/REPOSITORY_GOVERNANCE.md` e `SECURITY.md`. O canal de distribuição do candidato é o artefato imutável produzido pelo **BrisaBase Production Gate**; não trate a branch `main` ou um build local como release.

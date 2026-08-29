@@ -1,5 +1,6 @@
 const fs = require('fs');
 const path = require('path');
+const { isSemVerAtLeast } = require('./semver.cjs');
 const root = path.resolve(__dirname, '..');
 const read = (p) => fs.readFileSync(path.join(root, p), 'utf8');
 const exists = (p) => { if (!fs.existsSync(path.join(root, p))) throw new Error(`Missing ${p}`); };
@@ -9,8 +10,7 @@ const count = (source, needle) => source.split(needle).length - 1;
 exists('server/db/migrations/020_functions_developer_platform_phase5.sql');
 const pkg = JSON.parse(read('package.json'));
 const sdk = JSON.parse(read('developer/sdk/package.json'));
-const [major,minor,patch] = String(pkg.version || '0.0.0').split('.').map(Number);
-if (major < 0 || (major === 0 && minor < 7) || [major,minor,patch].some((value) => !Number.isFinite(value))) throw new Error(`Phase 5 platform version must be 0.7.0 or newer, got ${pkg.version}`);
+if (!isSemVerAtLeast(pkg.version, '0.7.0')) throw new Error(`Phase 5 platform version must be valid SemVer and 0.7.0 or newer, got ${pkg.version}`);
 if (sdk.version !== pkg.version) throw new Error('SDK version must match platform.');
 if (!read('developer/cli/brisabase.mjs').includes(`const VERSION = '${pkg.version}'`)) throw new Error('CLI version must match platform.');
 
