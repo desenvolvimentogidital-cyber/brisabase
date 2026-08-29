@@ -13,6 +13,7 @@ This document defines technical controls expected from each deployment profile. 
 - strict CORS allowlists in production;
 - CSP, HSTS on secure production requests, frame denial, MIME sniffing protection, referrer and permissions policies;
 - cookie-backed application refresh rejects untrusted browser origins while explicit token clients remain supported;
+- administrative refresh rejects browser requests explicitly marked `Sec-Fetch-Site: cross-site`, while CLI/server clients without browser Fetch Metadata remain compatible;
 - encrypted application secrets with key rotation support;
 - isolated Functions execution plane in bundled Hobby/Self-Hosted deployments;
 - backup encryption, recovery certification and optional PITR;
@@ -89,7 +90,20 @@ Any new internet-facing authentication or sensitive-action route must use a dist
 
 The normal admin/control plane uses explicit Bearer credentials. Application refresh also supports an HttpOnly refresh cookie for browser sessions. When the cookie fallback is used, the request origin must belong to the configured application/CORS allowlist; a remote origin cannot rotate the session cookie. Non-browser clients that send the refresh token explicitly continue to work without a browser Origin header.
 
+Administrative refresh has an additional Fetch Metadata boundary: a browser request marked by the user agent as cross-site is rejected before token rotation. This is defense in depth and does not replace the CORS/origin policy or secure SameSite/HttpOnly cookie configuration.
+
 New state-changing endpoints that rely on ambient browser credentials must implement equivalent Origin/CSRF enforcement. Do not treat CORS alone as CSRF protection.
+
+## Software supply chain
+
+The normal BrisaBase CI now treats supply-chain evidence as part of the release contract:
+- production dependencies are checked with `npm audit --omit=dev --audit-level=high`;
+- a CycloneDX SBOM is generated from the locked npm dependency graph;
+- the SBOM is uploaded as a CI artifact so a build has reviewable component evidence;
+- Dependabot monitors npm and GitHub Actions updates on a scheduled basis;
+- immutable image digests remain required by the production/Enterprise validators.
+
+A clean audit is not a substitute for SAST, container scanning or penetration testing. Organizations with stronger requirements should add those controls to their own release policy and retain the generated SBOM alongside deployed image digests.
 
 ## Local target state
 
