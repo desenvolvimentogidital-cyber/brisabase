@@ -126,7 +126,8 @@ async function runContract(): Promise<void> {
 
   const backups = await json('/api/backups', 200, 'GET', undefined, scopeA);
   assert.ok(Array.isArray(backups), 'Production encrypted backup listing must be available when BACKUP_ENABLED=true.');
-  await json('/api/functions', 403, 'GET', undefined, scopeA);
+  const functions = await json('/api/functions', 200, 'GET', undefined, scopeA);
+  assert.ok(Array.isArray(functions), 'Production Functions management must be available when FUNCTIONS_ENABLED=true with an isolated executor.');
   await json('/api/infrastructure/overview', 503, 'GET', undefined, scopeA);
   await json('/api/ecosystem/overview', 503, 'GET', undefined, scopeA);
 
