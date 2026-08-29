@@ -12,11 +12,13 @@ This document defines technical controls expected from each deployment profile. 
 - Redis-backed authentication throttling in real admin/application auth routes;
 - strict CORS allowlists in production;
 - CSP, HSTS on secure production requests, frame denial, MIME sniffing protection, referrer and permissions policies;
+- cookie-backed application refresh rejects untrusted browser origins while explicit token clients remain supported;
 - encrypted application secrets with key rotation support;
 - isolated Functions execution plane in bundled Hobby/Self-Hosted deployments;
 - backup encryption, recovery certification and optional PITR;
 - production configuration validation and immutable release identifiers;
 - non-privileged application database role in the bundled production topology;
+- Enterprise migration credentials isolated into a short-lived migration container rather than the long-running application runtime;
 - audit logs, IP allowlists, custom roles and SIEM-oriented Enterprise controls.
 
 ## Hobby
@@ -46,6 +48,8 @@ Required:
 - observability enabled;
 - restore certification before destructive restore is enabled.
 
+`deployment init self-hosted` generates the BrisaBase-owned secret material automatically. Domains, immutable image digests and operator-owned external credentials must still be reviewed before `doctor` can pass.
+
 Do not describe the bundled Compose as HA. A single host remains a single failure domain.
 
 ## Enterprise
@@ -53,7 +57,8 @@ Do not describe the bundled Compose as HA. A single host remains a single failur
 Enterprise externalizes stateful infrastructure so organizations can apply their own availability, networking and compliance controls.
 
 Required:
-- external PostgreSQL with TLS and dedicated application/migration roles;
+- external PostgreSQL with TLS and separate application/migration roles;
+- `DATABASE_MIGRATION_URL` available only to the one-shot migration service, never the application container;
 - external authenticated Redis with TLS;
 - external S3-compatible object storage over HTTPS;
 - immutable BrisaBase image;
@@ -79,6 +84,16 @@ Recommended for regulated environments:
 Real BrisaBase authentication routes use the shared Redis runtime for counters. This matters for horizontally scaled deployments: limits must be shared across replicas rather than stored in a process-local map.
 
 Any new internet-facing authentication or sensitive-action route must use a distributed limiter or an equivalent shared enforcement point. Process-local limiters are acceptable only for tests/legacy compatibility and must not be introduced into production auth routes.
+
+## CSRF and browser credential boundaries
+
+The normal admin/control plane uses explicit Bearer credentials. Application refresh also supports an HttpOnly refresh cookie for browser sessions. When the cookie fallback is used, the request origin must belong to the configured application/CORS allowlist; a remote origin cannot rotate the session cookie. Non-browser clients that send the refresh token explicitly continue to work without a browser Origin header.
+
+New state-changing endpoints that rely on ambient browser credentials must implement equivalent Origin/CSRF enforcement. Do not treat CORS alone as CSRF protection.
+
+## Local target state
+
+Named CLI targets contain endpoint URLs only and are kept in `brisabase.targets.json`. This file is ignored by Git so machine-specific local/remote target selection does not leak into source control. Authentication tokens remain in the CLI session store rather than the target file.
 
 ## Security claims
 
