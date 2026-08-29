@@ -90,7 +90,7 @@ async function doctor(selected) {
   run('docker', ['version'], { capture: true });
   run('docker', ['compose', 'version'], { capture: true });
   run(process.execPath, ['scripts/validate-deployment-profile.cjs', selected.name, selected.envFile]);
-  if (selected.name !== 'hobby') {
+  if (selected.name === 'self-hosted') {
     run(process.execPath, ['scripts/validate-production-env.cjs'], {
       env: { BRISABASE_ENV_FILE: selected.envFile },
     });
