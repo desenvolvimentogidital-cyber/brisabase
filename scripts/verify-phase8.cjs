@@ -2,6 +2,7 @@ const fs=require('fs');const path=require('path');const {isSemVerAtLeast}=requir
 const read=p=>fs.readFileSync(path.join(root,p),'utf8');
 const exists=p=>{if(!fs.existsSync(path.join(root,p)))throw new Error(`Missing ${p}`);};
 const must=(p,needles)=>{const s=read(p);for(const n of needles)if(!s.includes(n))throw new Error(`${p} missing: ${n}`);};
+const forbid=(p,needles)=>{const s=read(p);for(const n of needles)if(s.includes(n))throw new Error(`${p} still contains forbidden legacy billing reference: ${n}`);};
 for(const f of [
   'server/db/migrations/023_billing_enterprise_iac_phase8.sql','server/billing/localBillingEngine.ts','server/routes/billing.ts',
   'server/enterprise/enterpriseEngine.ts','server/routes/enterprise.ts','server/iac/iacEngine.ts','server/routes/iac.ts',
@@ -18,11 +19,13 @@ must('server/db/migrations/023_billing_enterprise_iac_phase8.sql',[
   'enterprise_scim_tokens','enterprise_ip_allowlist','enterprise_policies','enterprise_siem_sinks','compliance_evidence','enterprise_roles','iac_exports'
 ]);
 must('server/billing/localBillingEngine.ts',[
-  "const stripeApiBase='https://api.stripe.com/v1'",'Idempotency-Key','createCheckout','createPortal','cancelSubscription','verifyStripeWebhook',
-  'applyStripeEvent','billing_usage_ledger','assertEnterpriseAccess','overageEnabled','automatic_tax[enabled]','FOR UPDATE','billing_refunds'
+  "const paddleApiBase=()=>paddleEnvironment()==='live'?'https://api.paddle.com':'https://sandbox-api.paddle.com'",'createCheckout','createPortal','cancelSubscription','verifyPaddleWebhook',
+  'applyPaddleEvent','billing_usage_ledger','assertEnterpriseAccess','overageEnabled',"redirect:'error'",'FOR UPDATE','billing_refunds','String(event.event_id)'
 ]);
-must('server/routes/billing.ts',['express.raw','stripe-signature','/api/billing/checkout','/api/billing/portal','/api/billing/invoices/:invoiceId/refund']);
+must('server/routes/billing.ts',['express.raw','paddle-signature','/billing/v1/paddle/webhook','/api/billing/checkout','/api/billing/portal','/api/billing/invoices/:invoiceId/refund']);
 must('server/middleware/auth.ts',["return 'billing'",'customRoleAllows','assertEnterpriseAccess','IP_NOT_ALLOWED','SSO_REQUIRED','ADMIN_MFA_REQUIRED']);
+forbid('server/billing/localBillingEngine.ts',['STRIPE_','verifyStripeWebhook','applyStripeEvent','api.stripe.com']);
+forbid('server/routes/billing.ts',['stripe-signature','/stripe/']);
 
 must('server/enterprise/enterpriseEngine.ts',[
   'resolveTxt','publicHttps','privateIp','encryptSecret','decryptSecret','enterprise_scim_tokens','token_hash','enterprise_ip_allowlist',
@@ -36,12 +39,13 @@ must('server/iac/iacEngine.ts',["filter(key=>key!=='generatedAt')",'manifest_sha
 must('developer/cli/brisabase.mjs',['iac export','iac diff','iac check','iac history',"key !== 'generatedAt'",'BRISABASE_TOKEN']);
 must('server/routes/iac.ts',['/api/iac/export','/api/iac/history','/api/iac/diff']);
 
-must('scripts/validate-production-env.cjs',['BILLING_PROVIDER','STRIPE_SECRET_KEY','STRIPE_WEBHOOK_SECRET','STRIPE_PRICE_PRO','STRIPE_PRICE_TEAM']);
-must('.env.production.example',['BRISABASE_RELEASE=1.0.0','BILLING_PROVIDER=disabled','STRIPE_SECRET_KEY=','ENTERPRISE_ENABLED=true']);
-must('docker-compose.production.yml',['BILLING_PROVIDER:','STRIPE_SECRET_KEY:','STRIPE_WEBHOOK_SECRET:','ENTERPRISE_ENABLED:']);
+must('scripts/validate-production-env.cjs',['BILLING_PROVIDER','PADDLE_ENVIRONMENT','PADDLE_API_KEY','PADDLE_WEBHOOK_SECRET','PADDLE_PRICE_PRO','PADDLE_PRICE_TEAM']);
+must('.env.production.example',['BRISABASE_RELEASE=1.0.0','BILLING_PROVIDER=disabled','PADDLE_ENVIRONMENT=sandbox','PADDLE_API_KEY=','PADDLE_WEBHOOK_SECRET=','ENTERPRISE_ENABLED=true']);
+must('docker-compose.production.yml',['BILLING_PROVIDER:','PADDLE_ENVIRONMENT:','PADDLE_API_KEY:','PADDLE_WEBHOOK_SECRET:','PADDLE_PRICE_PRO:','PADDLE_PRICE_TEAM:','ENTERPRISE_ENABLED:']);
+forbid('docker-compose.production.yml',['STRIPE_SECRET_KEY:','STRIPE_WEBHOOK_SECRET:','STRIPE_PRICE_PRO:','STRIPE_PRICE_TEAM:','STRIPE_AUTOMATIC_TAX:']);
 must('src/App.tsx',['<EnterprisePage />','path="/billing"']);
 must('src/components/layout/Sidebar.tsx',["path: '/enterprise'","path: '/billing'"]);
-must('src/brisabase/pages/BillingPage.tsx',['Checkout, assinatura, uso, invoices e refunds','BILLING_PROVIDER=stripe','Refund']);
+must('src/brisabase/pages/BillingPage.tsx',['Beta público gratuito','BILLING_PROVIDER=disabled','BILLING_PROVIDER=paddle','Refund']);
 must('src/brisabase/pages/EnterprisePage.tsx',['Enterprise SSO','SCIM','IP allowlist','RBAC customizado','SIEM','Compliance Center','Infrastructure as Code']);
 must('src/brisabase/pages/DeveloperPlatformPage.tsx',['Release" value="1.0.0','BrisaBase CLI 1.0.0']);
 must('developer/packages/manifest.ts',["version: '1.0.0'"]);
