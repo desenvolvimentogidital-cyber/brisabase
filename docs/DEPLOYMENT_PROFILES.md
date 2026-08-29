@@ -74,6 +74,32 @@ Optional bundled edge:
 docker compose --env-file .env.enterprise -f docker-compose.enterprise.yml --profile edge up -d
 ```
 
+## Switching a project between local and remote instances
+
+`brisabase.json` already contains the API URL used by the CLI. Named targets preserve several safe origins and switch that URL without moving credentials into the target file.
+
+```bash
+npm run target -- add local http://localhost:3000
+npm run target -- add empresa https://baas.empresa.com
+npm run target -- list
+npm run target -- use empresa
+npm run target -- doctor empresa
+```
+
+Remote targets must use HTTPS. URLs containing usernames, passwords, query strings or fragments are rejected. The stored admin session remains in the CLI session store; `brisabase.targets.json` contains only target names and URLs.
+
+This supports the intended workflow:
+
+```text
+same application + same migrations + same SDK
+              │
+       ┌──────┴──────┐
+       │             │
+ localhost       own server
+       │             │
+       └──── target switch ────┘
+```
+
 ## Migration path
 
 A team can grow without changing application code:
