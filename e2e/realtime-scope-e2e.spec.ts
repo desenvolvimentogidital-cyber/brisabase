@@ -1,10 +1,8 @@
 import { test, expect } from '@playwright/test';
 import { WebSocket } from 'ws';
-import { ensureReleaseAdmin, firstReleaseOrganization } from './helpers/releaseAdmin';
+import { ensureReleaseScope } from './helpers/releaseAdmin';
 
 const API_URL = process.env.ADMIN_UI_URL || 'http://localhost:3000';
-const PROJECT_ID = 'proj_local_1';
-const ENVIRONMENT_ID = 'env_proj_local_1_development';
 const runId = `${Date.now().toString(36)}_${Math.random().toString(36).slice(2, 8)}`;
 const table = `realtime_scope_${runId}`;
 
@@ -26,58 +24,130 @@ function waitForSocketMessage(socket: WebSocket, predicate: (message: any) => bo
   });
 }
 
-async function signUpUser(email: string, password: string): Promise<any> {
-  const res = await fetch(`${API_URL}/api/auth/signup`, {
+async function responsePayload(response: Response): Promise<any> {
+  const text = await response.text();
+  try { return text ? JSON.parse(text) : null; } catch { return text; }
+}
+
+async function createManagedUser(
+  email: string,
+  password: string,
+  projectId: string,
+  environmentId: string,
+  headers: Record<string, string>,
+): Promise<any> {
+  const res = await fetch(`${API_URL}/api/projects/${projectId}/environments/${environmentId}/auth/users`, {
     method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ email, password, project_id: PROJECT_ID, environment_id: ENVIRONMENT_ID }),
+    headers,
+    body: JSON.stringify({ email, password, email_verified: true, role: 'user' }),
   });
-  const data = await res.json();
-  expect(res.status).toBe(201);
+  const data = await responsePayload(res);
+  expect(res.status, `Managed test-user creation failed: ${JSON.stringify(data)}`).toBe(201);
   return data;
 }
 
-async function loginUser(email: string, password: string): Promise<any> {
+async function loginUser(email: string, password: string, projectId: string, environmentId: string): Promise<any> {
   const res = await fetch(`${API_URL}/api/auth/login`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ email, password, project_id: PROJECT_ID, environment_id: ENVIRONMENT_ID }),
+    body: JSON.stringify({ email, password, project_id: projectId, environment_id: environmentId }),
   });
-  const data = await res.json();
-  expect(res.status).toBe(200);
+  const data = await responsePayload(res);
+  expect(res.status, `Project-user login failed: ${JSON.stringify(data)}`).toBe(200);
   return data;
 }
 
+async function createRealtimeScope(accessToken: string, organizationId: string) {
+  const organizationHeaders = {
+    authorization: `Bearer ${accessToken}`,
+    'x-organization-id': organizationId,
+    'content-type': 'application/json',
+  };
+  const projectResponse = await fetch(`${API_URL}/api/projects`, {
+    method: 'POST',
+    headers: organizationHeaders,
+    body: JSON.stringify({ organization_id: organizationId, name: `Realtime Scope ${runId}`, region: 'us-east-1' }),
+  });
+  const project = await responsePayload(projectResponse);
+  expect(projectResponse.status, `Realtime project creation failed: ${JSON.stringify(project)}`).toBe(201);
+  const projectId = String(project.id);
+
+  const environmentsResponse = await fetch(`${API_URL}/api/projects/${projectId}/environments`, {
+    headers: { ...organizationHeaders, 'x-project-id': projectId },
+  });
+  const environments = await responsePayload(environmentsResponse);
+  const environmentId = String(Array.isArray(environments) ? environments[0]?.id || '' : '');
+  expect(environmentsResponse.status, `Realtime environment lookup failed: ${JSON.stringify(environments)}`).toBe(200);
+  expect(environmentId).toBeTruthy();
+
+  const keyResponse = await fetch(`${API_URL}/api/projects/${projectId}/api-keys`, {
+    method: 'POST',
+    headers: { ...organizationHeaders, 'x-project-id': projectId, 'x-environment-id': environmentId },
+    body: JSON.stringify({ name: `realtime-e2e-${runId}`, type: 'service', environment_id: environmentId }),
+  });
+  const key = await responsePayload(keyResponse);
+  expect(keyResponse.status, `Realtime service-key creation failed: ${JSON.stringify(key)}`).toBe(201);
+  expect(key?.fullSecretKey).toBeTruthy();
+  return { organizationHeaders, projectId, environmentId, serviceKey: String(key.fullSecretKey) };
+}
+
+type RealtimeScope = Awaited<ReturnType<typeof createRealtimeScope>>;
+let activeScope: RealtimeScope | null = null;
+let activeSocketA: WebSocket | null = null;
+let activeSocketB: WebSocket | null = null;
+
 test.describe('Realtime Authentication and Scope E2E', () => {
-  test('User A cannot access User B protected channels', async () => {
-    const admin = await ensureReleaseAdmin(API_URL);
-    const organizationId = await firstReleaseOrganization(admin.access_token, API_URL);
+  test.afterEach(async () => {
+    activeSocketA?.close();
+    activeSocketB?.close();
+    activeSocketA = null;
+    activeSocketB = null;
+    if (!activeScope) return;
+
     const adminProjectHeaders = {
-      authorization: `Bearer ${admin.access_token}`,
-      'x-organization-id': organizationId,
-      'x-project-id': PROJECT_ID,
-      'x-environment-id': ENVIRONMENT_ID,
+      ...activeScope.organizationHeaders,
+      'x-project-id': activeScope.projectId,
+      'x-environment-id': activeScope.environmentId,
+    };
+    const tableCleanup = await fetch(`${API_URL}/api/database/tables/${table}`, { method: 'DELETE', headers: adminProjectHeaders });
+    expect([204, 404]).toContain(tableCleanup.status);
+    const projectCleanup = await fetch(`${API_URL}/api/projects/${activeScope.projectId}`, {
+      method: 'DELETE',
+      headers: { ...activeScope.organizationHeaders, 'x-project-id': activeScope.projectId },
+    });
+    expect([204, 404]).toContain(projectCleanup.status);
+    activeScope = null;
+  });
+
+  test('User A cannot access User B protected channels', async () => {
+    const { session, scope: releaseScope } = await ensureReleaseScope(API_URL);
+    const scope = await createRealtimeScope(session.access_token, releaseScope.organizationId);
+    activeScope = scope;
+    const adminProjectHeaders = {
+      ...scope.organizationHeaders,
+      'x-project-id': scope.projectId,
+      'x-environment-id': scope.environmentId,
       'content-type': 'application/json',
     };
     const password = `Realtime-E2E-${runId}-Password!`;
     const userAEmail = `alice.${runId}@brisabase.local`;
     const userBEmail = `bob.${runId}@brisabase.local`;
 
-    // Create two users
-    await signUpUser(userAEmail, password);
-    await signUpUser(userBEmail, password);
-    const loginA = await loginUser(userAEmail, password);
-    const loginB = await loginUser(userBEmail, password);
+    // Provision deterministic fixtures through the management API. Public
+    // signup rate limits remain fully active and are not consumed by this test.
+    await createManagedUser(userAEmail, password, scope.projectId, scope.environmentId, adminProjectHeaders);
+    await createManagedUser(userBEmail, password, scope.projectId, scope.environmentId, adminProjectHeaders);
+    const loginA = await loginUser(userAEmail, password, scope.projectId, scope.environmentId);
+    const loginB = await loginUser(userBEmail, password, scope.projectId, scope.environmentId);
     const accessA = loginA.session.access_token as string;
     const accessB = loginB.session.access_token as string;
 
     // Create a table for the test
-    const serviceKey = process.env.BRISABASE_E2E_SERVICE_KEY || 'bb_srv_local_development_only';
     const serviceHeaders = {
-      apikey: serviceKey,
+      apikey: scope.serviceKey,
       'x-brisabase-service-bypass': 'true',
-      'x-project-id': PROJECT_ID,
-      'x-environment-id': ENVIRONMENT_ID,
+      'x-project-id': scope.projectId,
+      'x-environment-id': scope.environmentId,
       'content-type': 'application/json',
     };
     const createTable = await fetch(`${API_URL}/api/database/tables`, {
@@ -116,14 +186,14 @@ test.describe('Realtime Authentication and Scope E2E', () => {
     }
 
     // User A connects with their JWT
-    const socketA = new WebSocket(`${API_URL.replace(/^http/, 'ws')}/realtime/v1/websocket`);
+    const socketA = activeSocketA = new WebSocket(`${API_URL.replace(/^http/, 'ws')}/realtime/v1/websocket`);
     await new Promise<void>((resolve, reject) => { socketA.once('open', resolve); socketA.once('error', reject); });
     const connectedA = waitForSocketMessage(socketA, (message) => message.type === 'connected' && message.payload?.connectionId);
     socketA.send(JSON.stringify({ type: 'connect', token: accessA }));
     await connectedA;
 
     // User B connects with their JWT
-    const socketB = new WebSocket(`${API_URL.replace(/^http/, 'ws')}/realtime/v1/websocket`);
+    const socketB = activeSocketB = new WebSocket(`${API_URL.replace(/^http/, 'ws')}/realtime/v1/websocket`);
     await new Promise<void>((resolve, reject) => { socketB.once('open', resolve); socketB.once('error', reject); });
     const connectedB = waitForSocketMessage(socketB, (message) => message.type === 'connected' && message.payload?.connectionId);
     socketB.send(JSON.stringify({ type: 'connect', token: accessB }));
@@ -165,9 +235,5 @@ test.describe('Realtime Authentication and Scope E2E', () => {
     }
     expect(receivedByB).toBe(false);
 
-    socketA.close();
-    socketB.close();
-    const cleanup = await fetch(`${API_URL}/api/database/tables/${table}`, { method: 'DELETE', headers: adminProjectHeaders });
-    expect(cleanup.status).toBe(204);
   });
 });
