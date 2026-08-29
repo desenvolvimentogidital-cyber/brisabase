@@ -38,10 +38,13 @@ Start:
 
 ```bash
 npm run deployment -- init self-hosted
-# Review and replace every placeholder in .env.production
+# BrisaBase secrets are generated automatically with independent random values.
+# Configure domains and immutable image digests in .env.production.
 npm run deployment -- doctor self-hosted
 npm run deployment -- up self-hosted
 ```
+
+`deployment init` writes the generated production environment with restrictive file permissions where the operating system supports them. It does not print generated secret values to the console.
 
 `BRISABASE_PRODUCTION_TIER=ha` is deliberately rejected for this profile. High availability requires external infrastructure and the Enterprise profile.
 
@@ -51,6 +54,8 @@ Audience: large companies and regulated environments that already operate manage
 
 Topology:
 - BrisaBase application container, suitable for replication by the customer's orchestrator;
+- a short-lived hardened migration container that receives `DATABASE_MIGRATION_URL`;
+- the long-running BrisaBase runtime receives only the lower-privilege `DATABASE_URL`;
 - external PostgreSQL over TLS;
 - external authenticated Redis over TLS;
 - external S3-compatible storage over HTTPS;
@@ -72,10 +77,13 @@ Start:
 
 ```bash
 npm run deployment -- init enterprise
-# Configure real external endpoints and secrets in .env.enterprise
+# BrisaBase-owned secrets are generated automatically.
+# Configure PostgreSQL/Redis/S3 credentials, domains and immutable images.
 npm run deployment -- doctor enterprise
 npm run deployment -- up enterprise
 ```
+
+The application credential and migration credential must be different accounts in real enterprise infrastructure. `DATABASE_MIGRATION_URL` is consumed only by the migration service; it is intentionally absent from the application container.
 
 Optional bundled edge:
 
@@ -85,7 +93,7 @@ docker compose --env-file .env.enterprise -f docker-compose.enterprise.yml --pro
 
 ## Switching a project between local and remote instances
 
-`brisabase.json` already contains the API URL used by the CLI. Named targets preserve several safe origins and switch that URL without moving credentials into the target file.
+`brisabase.json` contains the API URL used by the CLI. Named targets preserve several safe origins and switch that URL without moving credentials into the target file.
 
 ```bash
 npm run target -- add local http://localhost:3000
@@ -95,7 +103,7 @@ npm run target -- use empresa
 npm run target -- doctor empresa
 ```
 
-Remote targets must use HTTPS. URLs containing usernames, passwords, query strings or fragments are rejected. The stored admin session remains in the CLI session store; `brisabase.targets.json` contains only target names and URLs.
+Remote targets must use HTTPS. URLs containing usernames, passwords, query strings or fragments are rejected. `brisabase.targets.json` contains only target names and URLs and is ignored by Git so workstation-specific target state is not committed accidentally. The stored admin session remains in the CLI session store.
 
 This supports the intended workflow:
 
@@ -134,6 +142,7 @@ Keep the same project IDs, migrations, REST/GraphQL contracts and SDK. Move infr
 | Bundled Functions executor | Yes | Yes | No; external HTTPS when enabled |
 | TLS required | No (loopback) | Yes | Yes |
 | Distributed Redis coordination | Local Redis | Bundled Redis | External Redis |
+| Migration credential in app runtime | N/A/local | Bundled topology | No; migration service only |
 | HA claim | No | No | Yes, infrastructure-dependent |
 | Corporate WAF/LB | Optional/not needed | Optional | Recommended |
 | External observability | Optional | Optional | Recommended |

@@ -13,6 +13,7 @@ const enterprise = read('docker-compose.enterprise.yml');
 const production = read('docker-compose.production.yml');
 const enterpriseEnv = read('.env.enterprise.example');
 const hobbyEnv = read('.env.hobby.example');
+const gitignore = read('.gitignore');
 const deployScript = read('scripts/deployment-profile.cjs');
 const profileValidator = read('scripts/validate-deployment-profile.cjs');
 const targetScript = read('scripts/target.cjs');
@@ -36,6 +37,16 @@ assert.match(enterprise, /BRISABASE_DEPLOYMENT_PROFILE:\s*enterprise/);
 assert.match(enterprise, /BRISABASE_DEPLOYMENT_MODE:\s*managed/);
 assert.match(enterprise, /BRISABASE_PRODUCTION_TIER:\s*ha/);
 assert.doesNotMatch(enterprise, /^\s{2}(postgres|redis|minio|minio-init|functions-executor):\s*$/m, 'enterprise compose must not bundle stateful or single-node Functions infrastructure');
+assert.match(enterprise, /^\s{2}brisabase-migrate:\s*$/m, 'enterprise must run schema migrations in a separate operator container');
+assert.match(enterprise, /command:\s*\["node",\s*"server\/db\/migrate\.cjs"\]/);
+const migrationService = enterprise.split('\n  brisabase-migrate:\n')[1]?.split('\n  brisabase:\n')[0] || '';
+const applicationService = enterprise.split('\n  brisabase:\n')[1]?.split('\n  reverse-proxy:\n')[0] || '';
+assert.match(migrationService, /DATABASE_MIGRATION_URL:/, 'migration plane must receive DATABASE_MIGRATION_URL');
+assert.match(migrationService, /read_only:\s*true/);
+assert.match(migrationService, /cap_drop:\s*\["ALL"\]/);
+assert.match(migrationService, /no-new-privileges:true/);
+assert.doesNotMatch(applicationService, /DATABASE_MIGRATION_URL:/, 'application runtime must not receive migration credentials');
+assert.match(applicationService, /brisabase-migrate:\s*\n\s*condition:\s*service_completed_successfully/, 'application must wait for successful migrations');
 assert.match(enterprise, /FUNCTIONS_ENABLED:\s*\$\{FUNCTIONS_ENABLED:-false\}/);
 assert.match(enterprise, /FUNCTIONS_EXECUTOR_URL:\s*\$\{FUNCTIONS_EXECUTOR_URL:-\}/);
 assert.match(enterprise, /read_only:\s*true/);
@@ -77,9 +88,13 @@ assert.match(targetScript, /brisabase\.json/);
 assert.match(targetScript, /brisabase\.targets\.json/);
 assert.match(targetScript, /\/health\/required/);
 assert.match(targetScript, /Cannot remove active target/);
+assert.match(gitignore, /^brisabase\.targets\.json$/m, 'named target state must remain local and out of git');
 assert.equal(packageJson.scripts.deployment, 'node scripts/deployment-profile.cjs');
 assert.equal(packageJson.scripts.target, 'node scripts/target.cjs');
-assert.equal(packageJson.scripts['test:deployment-profiles'], 'node server/tests/deployment-profile-contract.test.cjs');
+assert.equal(
+  packageJson.scripts['test:deployment-profiles'],
+  'node server/tests/deployment-profile-contract.test.cjs && node server/tests/deployment-init-security.test.cjs'
+);
 
 const validator = path.join(root, 'scripts/validate-deployment-profile.cjs');
 const hobbyValidation = spawnSync(process.execPath, [validator, 'hobby', path.join(root, '.env.hobby.example')], { encoding: 'utf8' });

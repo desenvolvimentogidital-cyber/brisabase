@@ -5,9 +5,32 @@ name: brisabase-enterprise
 # supplied by the customer's infrastructure. The default bind is loopback so
 # an existing corporate ingress/WAF can proxy it.
 services:
+  # Database migrations run in a short-lived operator plane. The application
+  # container never receives DATABASE_MIGRATION_URL, preserving least privilege
+  # between schema administration and normal BrisaBase runtime queries.
+  brisabase-migrate:
+    image: ${BRISABASE_IMAGE:?BRISABASE_IMAGE must be an immutable digest-pinned image}
+    restart: "no"
+    command: ["node", "server/db/migrate.cjs"]
+    environment:
+      NODE_ENV: production
+      DATABASE_MIGRATION_URL: ${DATABASE_MIGRATION_URL:?DATABASE_MIGRATION_URL is required}
+      DATABASE_SSL: "true"
+      DATABASE_SSL_REJECT_UNAUTHORIZED: ${DATABASE_SSL_REJECT_UNAUTHORIZED:-true}
+      BRISABASE_ALLOW_DESTRUCTIVE_MIGRATIONS: ${BRISABASE_ALLOW_DESTRUCTIVE_MIGRATIONS:-false}
+    read_only: true
+    cap_drop: ["ALL"]
+    security_opt:
+      - no-new-privileges:true
+    pids_limit: 128
+    networks: [application]
+
   brisabase:
     image: ${BRISABASE_IMAGE:?BRISABASE_IMAGE must be an immutable digest-pinned image}
     restart: unless-stopped
+    depends_on:
+      brisabase-migrate:
+        condition: service_completed_successfully
     environment:
       NODE_ENV: production
       BRISABASE_DEPLOYMENT_PROFILE: enterprise
@@ -27,7 +50,6 @@ services:
       TRUST_PROXY: ${TRUST_PROXY:-1}
 
       DATABASE_URL: ${DATABASE_URL:?DATABASE_URL is required}
-      DATABASE_MIGRATION_URL: ${DATABASE_MIGRATION_URL:?DATABASE_MIGRATION_URL is required}
       DATABASE_SSL: "true"
       DATABASE_SSL_REJECT_UNAUTHORIZED: ${DATABASE_SSL_REJECT_UNAUTHORIZED:-true}
       DATABASE_POOL_MIN: ${DATABASE_POOL_MIN:-2}
