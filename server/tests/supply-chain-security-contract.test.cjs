@@ -46,8 +46,9 @@ assert.match(dependabot, /package-ecosystem:\s*npm/);
 assert.match(dependabot, /package-ecosystem:\s*github-actions/);
 assert.match(dependabot, /interval:\s*weekly/g);
 
-assert.match(sbom, /npm['"], \['sbom', '--sbom-format', 'cyclonedx'\]/);
+assert.match(sbom, /execFileSync\(npm, \['sbom', '--sbom-format', 'cyclonedx'\]/);
 assert.match(sbom, /document\.bomFormat !== 'CycloneDX'/);
+assert.match(sbom, /writeFileSync\(output/);
 
 const runtimeSection = dockerfile.slice(dockerfile.indexOf('FROM ${NODE_RUNTIME_IMAGE} AS runtime'));
 assert.match(runtimeSection, /USER node\s*\nCMD \["node", "dist\/server\/server\.cjs"\]/, 'production runtime must run as node user');
