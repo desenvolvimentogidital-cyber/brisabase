@@ -13,7 +13,7 @@ This document defines technical controls expected from each deployment profile. 
 - strict CORS allowlists in production;
 - CSP, HSTS on secure production requests, frame denial, MIME sniffing protection, referrer and permissions policies;
 - encrypted application secrets with key rotation support;
-- isolated Functions execution plane;
+- isolated Functions execution plane in bundled Hobby/Self-Hosted deployments;
 - backup encryption, recovery certification and optional PITR;
 - production configuration validation and immutable release identifiers;
 - non-privileged application database role in the bundled production topology;
@@ -56,12 +56,13 @@ Required:
 - external PostgreSQL with TLS and dedicated application/migration roles;
 - external authenticated Redis with TLS;
 - external S3-compatible object storage over HTTPS;
-- immutable BrisaBase and Functions images;
-- private Functions network with no database/Redis/S3 credentials;
+- immutable BrisaBase image;
 - corporate ingress/WAF or the optional hardened edge profile;
 - centralized monitoring/alerting for production services;
 - controlled secret rotation and backup/recovery runbooks;
 - `BRISABASE_DEPLOYMENT_MODE=managed` and `BRISABASE_PRODUCTION_TIER=ha`.
+
+Managed/HA Functions are intentionally not supplied as a single bundled executor. Keep `FUNCTIONS_ENABLED=false` until the organization deploys a separate HTTPS Functions service with its own immutable images, horizontal scaling/private networking controls and a unique executor token. When enabled, the runtime requires the executor to use a different HTTPS origin from the BrisaBase callback origin.
 
 Recommended for regulated environments:
 - external secret manager instead of long-lived `.env` files;
