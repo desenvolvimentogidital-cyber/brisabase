@@ -55,11 +55,42 @@ async function checkPage(page: Page, path: string, name: string): Promise<void> 
   expect(errors, `Page errors on ${name}: ${errors.join('; ')}`).toEqual([]);
   expect(apiErrors, `Unexpected API failures on ${name}: ${apiErrors.join('; ')}`).toEqual([]);
 
-  // Check for horizontal overflow
-  const hasOverflow = await page.evaluate(() => {
-    return document.documentElement.scrollWidth > document.documentElement.clientWidth;
+  // Check for real visual horizontal overflow. window.innerWidth represents the
+  // visual viewport including the vertical scrollbar gutter; clientWidth does
+  // not, which previously produced false positives on long mobile pages.
+  const overflow = await page.evaluate(() => {
+    const viewportWidth = window.innerWidth;
+    const offenders = Array.from(document.querySelectorAll<HTMLElement>('*'))
+      .filter((element) => {
+        const style = window.getComputedStyle(element);
+        if (style.display === 'none' || style.visibility === 'hidden') return false;
+        const rect = element.getBoundingClientRect();
+        if (rect.width <= 0 || rect.height <= 0) return false;
+        return rect.left < -1 || rect.right > viewportWidth + 1 || rect.width > viewportWidth + 1;
+      })
+      .slice(0, 8)
+      .map((element) => {
+        const rect = element.getBoundingClientRect();
+        return {
+          tag: element.tagName.toLowerCase(),
+          id: element.id,
+          className: typeof element.className === 'string' ? element.className : '',
+          left: Math.round(rect.left),
+          right: Math.round(rect.right),
+          width: Math.round(rect.width),
+        };
+      });
+
+    return {
+      documentWidth: document.documentElement.scrollWidth,
+      viewportWidth,
+      offenders,
+    };
   });
-  expect(hasOverflow, `Horizontal overflow on ${name}`).toBe(false);
+  expect(
+    overflow.documentWidth <= overflow.viewportWidth + 1 && overflow.offenders.length === 0,
+    `Horizontal overflow on ${name}: ${JSON.stringify(overflow)}`,
+  ).toBe(true);
 
   // A protected page is useful only when its real control-plane calls succeed.
   const errorState = await page.locator('text=Não foi possível carregar os dados').count();
@@ -206,11 +237,13 @@ test.describe('Admin UI Smoke Tests', () => {
 
   test('Selected project text remains high-contrast', async ({ page }) => {
     await page.goto('/projects', { waitUntil: 'networkidle' });
+    await openProjectNavigation(page);
 
-    const activeProjectStatus = page.getByText('Projeto Ativo', { exact: true });
-    await expect(activeProjectStatus).toHaveCount(1);
-    const activeProjectButton = activeProjectStatus.locator('xpath=ancestor::button[1]');
-    await expect(activeProjectButton).toHaveCount(1);
+    // ProjectSelector exposes its active state through an accessible name. Role
+    // locators ignore the CSS-hidden desktop copy on mobile/tablet, so this
+    // assertion follows the selector the user can actually see and interact with.
+    const activeProjectButton = page.getByRole('button', { name: /Projeto Ativo:|Active Project:/i }).first();
+    await expect(activeProjectButton).toBeVisible();
     await expect(activeProjectButton.locator('span.text-slate-100').first()).toBeVisible();
   });
 
