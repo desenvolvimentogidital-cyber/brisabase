@@ -1,40 +1,13 @@
 name: brisabase-enterprise
 
-# Enterprise runs the BrisaBase application planes in Docker while PostgreSQL,
-# Redis and S3-compatible storage are supplied by the customer's infrastructure.
-# The default bind is loopback so an existing corporate ingress/WAF can proxy it.
+# Enterprise runs the BrisaBase application plane in Docker while PostgreSQL,
+# Redis, S3-compatible storage and horizontally scaled Function execution are
+# supplied by the customer's infrastructure. The default bind is loopback so
+# an existing corporate ingress/WAF can proxy it.
 services:
-  functions-executor:
-    image: ${FUNCTIONS_IMAGE:?FUNCTIONS_IMAGE must be an immutable digest-pinned image}
-    restart: unless-stopped
-    environment:
-      NODE_ENV: production
-      PORT: "3100"
-      FUNCTIONS_EXECUTOR_TOKEN: ${FUNCTIONS_EXECUTOR_TOKEN:?FUNCTIONS_EXECUTOR_TOKEN is required}
-      FUNCTIONS_API_ORIGIN: http://brisabase:3000
-      FUNCTIONS_EXECUTOR_PRIVATE_NETWORK: "true"
-      FUNCTIONS_EXECUTOR_MAX_CONCURRENCY: ${FUNCTIONS_EXECUTOR_MAX_CONCURRENCY:-20}
-    read_only: true
-    tmpfs:
-      - /tmp:size=64m,noexec,nosuid,nodev
-    cap_drop: ["ALL"]
-    security_opt:
-      - no-new-privileges:true
-    pids_limit: 256
-    healthcheck:
-      test: ["CMD", "node", "-e", "fetch('http://127.0.0.1:3100/healthz').then((r)=>process.exit(r.status===200?0:1)).catch(()=>process.exit(1))"]
-      interval: 5s
-      timeout: 5s
-      retries: 20
-      start_period: 10s
-    networks: [functions-plane]
-
   brisabase:
     image: ${BRISABASE_IMAGE:?BRISABASE_IMAGE must be an immutable digest-pinned image}
     restart: unless-stopped
-    depends_on:
-      functions-executor:
-        condition: service_healthy
     environment:
       NODE_ENV: production
       BRISABASE_DEPLOYMENT_PROFILE: enterprise
@@ -100,10 +73,12 @@ services:
       REALTIME_CDC_PROJECT_ID: ${REALTIME_CDC_PROJECT_ID:-}
       REALTIME_CDC_ENVIRONMENT_ID: ${REALTIME_CDC_ENVIRONMENT_ID:-}
 
-      FUNCTIONS_ENABLED: "true"
-      FUNCTIONS_EXECUTOR_URL: http://functions-executor:3100
-      FUNCTIONS_EXECUTOR_TOKEN: ${FUNCTIONS_EXECUTOR_TOKEN:?FUNCTIONS_EXECUTOR_TOKEN is required}
-      FUNCTIONS_RPC_CALLBACK_ORIGIN: http://brisabase:3000
+      # Managed/HA deployments require a separately deployed HTTPS Functions
+      # service. Leave FUNCTIONS_ENABLED=false until that service is available.
+      FUNCTIONS_ENABLED: ${FUNCTIONS_ENABLED:-false}
+      FUNCTIONS_EXECUTOR_URL: ${FUNCTIONS_EXECUTOR_URL:-}
+      FUNCTIONS_EXECUTOR_TOKEN: ${FUNCTIONS_EXECUTOR_TOKEN:-}
+      FUNCTIONS_RPC_CALLBACK_ORIGIN: ${FUNCTIONS_RPC_CALLBACK_ORIGIN:-}
       FUNCTIONS_EXECUTION_TIMEOUT_MS: ${FUNCTIONS_EXECUTION_TIMEOUT_MS:-30000}
       FUNCTIONS_MEMORY_LIMIT_MB: ${FUNCTIONS_MEMORY_LIMIT_MB:-256}
       FUNCTIONS_MAX_CONCURRENT_EXECUTIONS: ${FUNCTIONS_MAX_CONCURRENT_EXECUTIONS:-20}
@@ -171,7 +146,7 @@ services:
       timeout: 5s
       retries: 20
       start_period: 15s
-    networks: [application, functions-plane]
+    networks: [application]
 
   # Optional edge profile for teams that want the bundled Caddy proxy. Large
   # enterprises can omit it and use their existing WAF/load balancer instead.
@@ -200,9 +175,6 @@ services:
 networks:
   application:
     driver: bridge
-  functions-plane:
-    driver: bridge
-    internal: true
 
 volumes:
   caddy_data:
