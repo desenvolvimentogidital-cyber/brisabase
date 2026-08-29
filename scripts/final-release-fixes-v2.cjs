@@ -10,6 +10,19 @@ function replaceExact(path, before, after, label) {
   return true;
 }
 
+function replaceAllExact(path, before, after, label) {
+  let text = fs.readFileSync(path, 'utf8').replace(/\r\n/g, '\n');
+  if (!text.includes(before)) {
+    if (text.includes(after)) return false;
+    throw new Error(`Patch target not found in ${path}: ${label}`);
+  }
+  const count = text.split(before).length - 1;
+  text = text.split(before).join(after);
+  fs.writeFileSync(path, text, 'utf8');
+  console.log(`patched ${path}: ${label} (${count} replacement${count === 1 ? '' : 's'})`);
+  return true;
+}
+
 replaceExact(
   'server/tests/production-config-contract.test.ts',
   "  ALERT_WEBHOOK_ENABLED: 'false', ALERT_WEBHOOK_URL: '', ALERT_WEBHOOK_TOKEN: '',\n};",
@@ -94,4 +107,74 @@ replaceExact(
   'guard billing and storage schema compatibility'
 );
 
-console.log('Production, admin API-mode, compatibility-style, Docker auth-session, and billing-storage schema alignment complete.');
+replaceExact(
+  'e2e/admin-ui-smoke.spec.ts',
+  "const RUN_ID = `${Date.now()}-${process.pid}-${Math.random().toString(36).slice(2, 10)}`;\nconst ADMIN_EMAIL = process.env.ADMIN_SMOKE_EMAIL || `admin-ui-smoke-${RUN_ID}@brisabase.local`;\nconst ADMIN_PASSWORD = 'SuperSecretSmokePassword123!';\nconst ADMIN_BOOTSTRAP_TOKEN = process.env.ADMIN_BOOTSTRAP_TOKEN || 'local-bootstrap-token-for-isolated-e2e-only-2026';\nconst IS_FIXED_ADMIN_EMAIL = Boolean(process.env.ADMIN_SMOKE_EMAIL);",
+  "const RUN_ID = String(process.env.ADMIN_SMOKE_RUN_ID || process.env.GITHUB_RUN_ID || 'local').replace(/[^a-zA-Z0-9_-]/g, '-');\nconst ADMIN_EMAIL = process.env.ADMIN_SMOKE_EMAIL || `admin-ui-smoke-${RUN_ID}@brisabase.local`;\nconst ADMIN_PASSWORD = 'SuperSecretSmokePassword123!';\nconst ADMIN_BOOTSTRAP_TOKEN = process.env.ADMIN_BOOTSTRAP_TOKEN || 'local-bootstrap-token-for-isolated-e2e-only-2026';",
+  'reuse one deterministic smoke admin across Playwright worker restarts'
+);
+
+replaceExact(
+  'e2e/admin-ui-smoke.spec.ts',
+  "const PAGES = [\n  { path: () => '/dashboard', name: 'Dashboard' },\n  { path: () => '/projects', name: 'Projects' },\n  { path: () => `/projects/${PROJECT_ID}/database`, name: 'Database' },\n  { path: () => `/projects/${PROJECT_ID}/auth`, name: 'Authentication' },\n  { path: () => `/projects/${PROJECT_ID}/storage`, name: 'Storage' },\n  { path: () => `/projects/${PROJECT_ID}/realtime`, name: 'Realtime' },\n  { path: () => `/projects/${PROJECT_ID}/apis`, name: 'APIs' },\n  { path: () => `/projects/${PROJECT_ID}/logs`, name: 'Logs' },\n  { path: () => `/projects/${PROJECT_ID}/monitoring`, name: 'Observability' },\n  { path: () => '/team', name: 'Team' },\n  { path: () => '/settings', name: 'Settings' },\n  { path: () => '/billing', name: 'Billing' },\n  { path: () => '/docs', name: 'Documentation' },\n];",
+  "const PAGES = [\n  { path: () => '/', name: 'Dashboard' },\n  { path: () => '/projects', name: 'Projects' },\n  { path: () => '/database', name: 'Database' },\n  { path: () => '/auth', name: 'Authentication' },\n  { path: () => '/storage', name: 'Storage' },\n  { path: () => '/realtime', name: 'Realtime' },\n  { path: () => '/apis', name: 'APIs' },\n  { path: () => '/logs', name: 'Logs' },\n  { path: () => '/observability', name: 'Observability' },\n  { path: () => '/members', name: 'Members' },\n  { path: () => '/settings', name: 'Settings' },\n  { path: () => '/billing', name: 'Billing' },\n  { path: () => '/docs', name: 'Documentation' },\n];",
+  'exercise canonical BrowserRouter routes instead of catch-all redirects'
+);
+
+replaceExact(
+  'e2e/admin-ui-smoke.spec.ts',
+  "async function ensureSmokeAdmin(request: APIRequestContext) {\n  const signupResponse = await signUpSmokeAdmin(request);\n  if (signupResponse.status() === 201) {\n    const loginResponse = await loginSmokeAdmin(request);\n    if (loginResponse.status() !== 200) {\n      throw new Error(`Admin login after successful signup failed with HTTP ${loginResponse.status()}.`);\n    }\n    return loginResponse;\n  }\n\n  if (signupResponse.status() === 409 && IS_FIXED_ADMIN_EMAIL) {\n    const loginResponse = await loginSmokeAdmin(request);\n    if (loginResponse.status() === 200) return loginResponse;\n    throw new Error(`Admin signup returned HTTP 409 for fixed email, but the existing user could not authenticate (HTTP ${loginResponse.status()}).`);\n  }\n\n  throw new Error(`Admin signup expected HTTP 201${IS_FIXED_ADMIN_EMAIL ? ' or a verified fixed-email HTTP 409' : ''}, received HTTP ${signupResponse.status()}.`);\n}",
+  "async function ensureSmokeAdmin(request: APIRequestContext) {\n  const existingLogin = await loginSmokeAdmin(request);\n  if (existingLogin.status() === 200) return existingLogin;\n  if (existingLogin.status() !== 401) {\n    throw new Error(`Existing smoke-admin login expected HTTP 200 or 401, received HTTP ${existingLogin.status()}.`);\n  }\n\n  const signupResponse = await signUpSmokeAdmin(request);\n  if (![201, 409].includes(signupResponse.status())) {\n    throw new Error(`Admin signup expected HTTP 201 or 409, received HTTP ${signupResponse.status()}.`);\n  }\n\n  const loginResponse = await loginSmokeAdmin(request);\n  if (loginResponse.status() !== 200) {\n    throw new Error(`Admin login after smoke-admin initialization failed with HTTP ${loginResponse.status()}.`);\n  }\n  return loginResponse;\n}",
+  'reuse the existing smoke admin before exercising signup again'
+);
+
+replaceExact(
+  'e2e/admin-ui-smoke.spec.ts',
+  "  await page.goto(path, { waitUntil: 'networkidle', timeout: 30_000 });\n  await page.waitForTimeout(2_000);\n\n  // Check for critical console errors",
+  "  await page.goto(path, { waitUntil: 'networkidle', timeout: 30_000 });\n  await page.waitForTimeout(2_000);\n  expect(new URL(page.url()).pathname, `${name} must stay on the requested canonical route`).toBe(path);\n\n  // Check for critical console errors",
+  'reject catch-all redirects in page-load smoke coverage'
+);
+
+replaceExact(
+  'e2e/admin-ui-smoke.spec.ts',
+  "      window.localStorage.setItem('brisabase.organizationId', organizationId);\n      window.localStorage.setItem('brisabase.projectId', projectId);\n      window.localStorage.setItem('brisabase.environmentId', environmentId);",
+  "      window.localStorage.setItem('brisabase.organizationId', organizationId);\n      window.localStorage.setItem('brisabase.projectId', projectId);\n      window.localStorage.setItem('brisabase.environmentId', environmentId);\n      window.localStorage.setItem('brisabase_active_project_id', projectId);\n      window.localStorage.setItem(`brisabase_environment_id:${projectId}`, environmentId);",
+  'persist the active project and environment keys used by AppContext hydration'
+);
+
+replaceAllExact(
+  'e2e/admin-ui-smoke.spec.ts',
+  "    await page.goto(`/projects/${PROJECT_ID}/database`, { waitUntil: 'networkidle' });",
+  "    await page.goto('/database', { waitUntil: 'networkidle' });",
+  'exercise the canonical database route in focused browser tests'
+);
+
+replaceAllExact(
+  'e2e/admin-ui-smoke.spec.ts',
+  "    await page.goto(`/projects/${PROJECT_ID}/apis`, { waitUntil: 'networkidle' });",
+  "    await page.goto('/apis', { waitUntil: 'networkidle' });",
+  'exercise the canonical APIs route in focused browser tests'
+);
+
+replaceAllExact(
+  'e2e/admin-ui-smoke.spec.ts',
+  "    await page.goto('/dashboard', { waitUntil: 'networkidle' });",
+  "    await page.goto('/', { waitUntil: 'networkidle' });",
+  'exercise the canonical dashboard route'
+);
+
+replaceExact(
+  'e2e/admin-ui-smoke.spec.ts',
+  "    // Navigate to Team\n    await page.goto('/team', { waitUntil: 'networkidle' });\n    await page.waitForTimeout(1_000);\n    expect(page.url()).toContain('/team');",
+  "    // Navigate to Members\n    await page.goto('/members', { waitUntil: 'networkidle' });\n    await page.waitForTimeout(1_000);\n    expect(page.url()).toContain('/members');",
+  'navigate through the canonical members route'
+);
+
+replaceExact(
+  'e2e/admin-ui-smoke.spec.ts',
+  "    for (const label of ['Banco de Dados', 'Autenticação', 'Storage', 'Realtime', 'Security', 'APIs', 'Logs', 'Monitoramento']) {",
+  "    for (const label of ['Banco de Dados', 'Autenticação', 'Storage', 'Realtime', 'Segurança', 'APIs', 'Logs', 'Observabilidade']) {",
+  'validate the current Portuguese sidebar labels'
+);
+
+console.log('Production, admin API-mode, compatibility-style, Docker auth-session, billing-storage, and browser-route certification alignment complete.');
