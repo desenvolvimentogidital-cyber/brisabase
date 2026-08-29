@@ -179,13 +179,16 @@ validateRetention('APP_QUALITY_RETENTION_DAYS');
 validateRetention('AI_USAGE_RETENTION_DAYS');
 
 const billingProvider = String(env.BILLING_PROVIDER || 'disabled').toLowerCase();
-if (!['disabled','stripe'].includes(billingProvider)) failures.push('BILLING_PROVIDER must be disabled or stripe');
-if (billingProvider === 'stripe') {
-  for (const name of ['STRIPE_SECRET_KEY','STRIPE_WEBHOOK_SECRET','STRIPE_PRICE_PRO','STRIPE_PRICE_TEAM']) required(name);
-  if (!String(env.STRIPE_SECRET_KEY || '').startsWith('sk_') || weak(env.STRIPE_SECRET_KEY)) failures.push('STRIPE_SECRET_KEY must be a non-placeholder Stripe secret key with at least 32 bytes');
-  if (!String(env.STRIPE_WEBHOOK_SECRET || '').startsWith('whsec_') || weak(env.STRIPE_WEBHOOK_SECRET)) failures.push('STRIPE_WEBHOOK_SECRET must be a non-placeholder Stripe webhook signing secret with at least 32 bytes');
-  if (env.STRIPE_PRICE_PRO && !String(env.STRIPE_PRICE_PRO).startsWith('price_')) failures.push('STRIPE_PRICE_PRO must be a Stripe price id');
-  if (env.STRIPE_PRICE_TEAM && !String(env.STRIPE_PRICE_TEAM).startsWith('price_')) failures.push('STRIPE_PRICE_TEAM must be a Stripe price id');
+const paddleEnvironment = String(env.PADDLE_ENVIRONMENT || 'sandbox').toLowerCase();
+if (!['disabled','paddle'].includes(billingProvider)) failures.push('BILLING_PROVIDER must be disabled or paddle');
+if (!['sandbox','live'].includes(paddleEnvironment)) failures.push('PADDLE_ENVIRONMENT must be sandbox or live');
+if (billingProvider === 'paddle') {
+  for (const name of ['PADDLE_API_KEY','PADDLE_WEBHOOK_SECRET','PADDLE_PRICE_PRO','PADDLE_PRICE_TEAM']) required(name);
+  const expectedPrefix = paddleEnvironment === 'live' ? 'pdl_live_apikey_' : 'pdl_sdbx_apikey_';
+  if (!String(env.PADDLE_API_KEY || '').startsWith(expectedPrefix) || weak(env.PADDLE_API_KEY)) failures.push(`PADDLE_API_KEY must be a non-placeholder ${paddleEnvironment} Paddle API key with at least 32 bytes`);
+  if (!String(env.PADDLE_WEBHOOK_SECRET || '').startsWith('pdl_ntfset_') || weak(env.PADDLE_WEBHOOK_SECRET)) failures.push('PADDLE_WEBHOOK_SECRET must be a non-placeholder Paddle notification destination secret with at least 32 bytes');
+  if (env.PADDLE_PRICE_PRO && !String(env.PADDLE_PRICE_PRO).startsWith('pri_')) failures.push('PADDLE_PRICE_PRO must be a Paddle price id');
+  if (env.PADDLE_PRICE_TEAM && !String(env.PADDLE_PRICE_TEAM).startsWith('pri_')) failures.push('PADDLE_PRICE_TEAM must be a Paddle price id');
 }
 
 if (env.COOKIE_SECURE !== 'true' || env.COOKIE_HTTP_ONLY !== 'true' || !['lax', 'strict', 'none'].includes(env.COOKIE_SAME_SITE || 'lax')) failures.push('Production cookies require COOKIE_SECURE=true, COOKIE_HTTP_ONLY=true, and a valid COOKIE_SAME_SITE value');

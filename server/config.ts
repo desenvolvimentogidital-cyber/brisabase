@@ -232,9 +232,9 @@ export const config = {
   ecosystem: { previewEnabled: bool(process.env.ECOSYSTEM_PREVIEW_ENABLED, !production) },
   billing: {
     provider: (process.env.BILLING_PROVIDER || 'disabled').toLowerCase(),
-    stripeSecretKey: process.env.STRIPE_SECRET_KEY || '',
-    stripeWebhookSecret: process.env.STRIPE_WEBHOOK_SECRET || '',
-    automaticTax: bool(process.env.STRIPE_AUTOMATIC_TAX, false),
+    paddleApiKey: process.env.PADDLE_API_KEY || '',
+    paddleWebhookSecret: process.env.PADDLE_WEBHOOK_SECRET || '',
+    paddleEnvironment: (process.env.PADDLE_ENVIRONMENT || 'sandbox').toLowerCase(),
   },
   enterprise: { enabled: bool(process.env.ENTERPRISE_ENABLED, true) },
   realtime: {
@@ -299,14 +299,19 @@ export const config = {
     validateCorsOrigins(corsAllowedOriginsRaw);
     if (!config.cookies.secure || !config.cookies.httpOnly || !['lax', 'strict', 'none'].includes(config.cookies.sameSite)) throw new Error('[BRISABASE CONFIGURATION ERROR] Production cookies require COOKIE_SECURE=true, COOKIE_HTTP_ONLY=true, and a valid COOKIE_SAME_SITE value.');
     if (config.database.poolMin > config.database.poolMax) throw new Error('[BRISABASE CONFIGURATION ERROR] DATABASE_POOL_MIN cannot exceed DATABASE_POOL_MAX.');
-    if (!['disabled','stripe'].includes(config.billing.provider)) throw new Error('[BRISABASE CONFIGURATION ERROR] BILLING_PROVIDER must be disabled or stripe.');
-    if (config.billing.provider === 'stripe') {
-      secureSecret('STRIPE_SECRET_KEY', process.env.STRIPE_SECRET_KEY);
-      secureSecret('STRIPE_WEBHOOK_SECRET', process.env.STRIPE_WEBHOOK_SECRET);
-      required('STRIPE_PRICE_PRO', process.env.STRIPE_PRICE_PRO);
-      required('STRIPE_PRICE_TEAM', process.env.STRIPE_PRICE_TEAM);
-      if (!String(process.env.STRIPE_SECRET_KEY || '').startsWith('sk_')) throw new Error('[BRISABASE CONFIGURATION ERROR] STRIPE_SECRET_KEY must be a Stripe secret key.');
-      if (!String(process.env.STRIPE_WEBHOOK_SECRET || '').startsWith('whsec_')) throw new Error('[BRISABASE CONFIGURATION ERROR] STRIPE_WEBHOOK_SECRET must be a Stripe webhook signing secret.');
+    if (!['disabled','paddle'].includes(config.billing.provider)) throw new Error('[BRISABASE CONFIGURATION ERROR] BILLING_PROVIDER must be disabled or paddle.');
+    if (!['sandbox','live'].includes(config.billing.paddleEnvironment)) throw new Error('[BRISABASE CONFIGURATION ERROR] PADDLE_ENVIRONMENT must be sandbox or live.');
+    if (config.billing.provider === 'paddle') {
+      secureSecret('PADDLE_API_KEY', process.env.PADDLE_API_KEY);
+      secureSecret('PADDLE_WEBHOOK_SECRET', process.env.PADDLE_WEBHOOK_SECRET);
+      required('PADDLE_PRICE_PRO', process.env.PADDLE_PRICE_PRO);
+      required('PADDLE_PRICE_TEAM', process.env.PADDLE_PRICE_TEAM);
+      const paddleKey = String(process.env.PADDLE_API_KEY || '');
+      const expectedPrefix = config.billing.paddleEnvironment === 'live' ? 'pdl_live_apikey_' : 'pdl_sdbx_apikey_';
+      if (!paddleKey.startsWith(expectedPrefix)) throw new Error(`[BRISABASE CONFIGURATION ERROR] PADDLE_API_KEY must match PADDLE_ENVIRONMENT=${config.billing.paddleEnvironment}.`);
+      if (!String(process.env.PADDLE_WEBHOOK_SECRET || '').startsWith('pdl_ntfset_')) throw new Error('[BRISABASE CONFIGURATION ERROR] PADDLE_WEBHOOK_SECRET must be a Paddle notification destination secret.');
+      if (!String(process.env.PADDLE_PRICE_PRO || '').startsWith('pri_')) throw new Error('[BRISABASE CONFIGURATION ERROR] PADDLE_PRICE_PRO must be a Paddle price id.');
+      if (!String(process.env.PADDLE_PRICE_TEAM || '').startsWith('pri_')) throw new Error('[BRISABASE CONFIGURATION ERROR] PADDLE_PRICE_TEAM must be a Paddle price id.');
     }
 
     if (config.functions.enabled) {
