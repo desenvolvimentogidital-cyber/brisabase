@@ -1,5 +1,6 @@
 import { test, expect } from '@playwright/test';
 import { WebSocket } from 'ws';
+import { ensureReleaseAdmin, firstReleaseOrganization } from './helpers/releaseAdmin';
 
 const API_URL = process.env.ADMIN_UI_URL || 'http://localhost:3000';
 const PROJECT_ID = 'proj_local_1';
@@ -49,6 +50,15 @@ async function loginUser(email: string, password: string): Promise<any> {
 
 test.describe('Realtime Authentication and Scope E2E', () => {
   test('User A cannot access User B protected channels', async () => {
+    const admin = await ensureReleaseAdmin(API_URL);
+    const organizationId = await firstReleaseOrganization(admin.access_token, API_URL);
+    const adminProjectHeaders = {
+      authorization: `Bearer ${admin.access_token}`,
+      'x-organization-id': organizationId,
+      'x-project-id': PROJECT_ID,
+      'x-environment-id': ENVIRONMENT_ID,
+      'content-type': 'application/json',
+    };
     const password = `Realtime-E2E-${runId}-Password!`;
     const userAEmail = `alice.${runId}@brisabase.local`;
     const userBEmail = `bob.${runId}@brisabase.local`;
@@ -72,7 +82,7 @@ test.describe('Realtime Authentication and Scope E2E', () => {
     };
     const createTable = await fetch(`${API_URL}/api/database/tables`, {
       method: 'POST',
-      headers: serviceHeaders,
+      headers: adminProjectHeaders,
       body: JSON.stringify({
         name: table,
         columns: [
@@ -91,9 +101,9 @@ test.describe('Realtime Authentication and Scope E2E', () => {
       ['UPDATE', 'row.owner_id = auth.uid() and new.owner_id = auth.uid()'],
       ['DELETE', 'row.owner_id = auth.uid()'],
     ]) {
-      await fetch(`${API_URL}/api/security/policies`, {
+      const policy = await fetch(`${API_URL}/api/security/policies`, {
         method: 'POST',
-        headers: serviceHeaders,
+        headers: adminProjectHeaders,
         body: JSON.stringify({
           name: `${operation.toLowerCase()} own ${table}`,
           resourceType: 'table',
@@ -102,6 +112,7 @@ test.describe('Realtime Authentication and Scope E2E', () => {
           condition,
         }),
       });
+      expect(policy.status).toBe(201);
     }
 
     // User A connects with their JWT
@@ -156,5 +167,7 @@ test.describe('Realtime Authentication and Scope E2E', () => {
 
     socketA.close();
     socketB.close();
+    const cleanup = await fetch(`${API_URL}/api/database/tables/${table}`, { method: 'DELETE', headers: adminProjectHeaders });
+    expect(cleanup.status).toBe(204);
   });
 });

@@ -39,6 +39,7 @@ export const UserPasswordReset: React.FC = () => {
       <div className="mb-6 flex justify-center"><BrisaLogo size="lg" /></div>
       <h1 className="text-center text-xl font-bold">{isEnglish ? 'Set a new password' : 'Definir nova senha'}</h1>
       <p className="mt-2 text-center text-xs text-slate-400">{isEnglish ? 'Real password recovery for users of BrisaBase projects.' : 'Recuperação real de senha para usuários dos projetos BrisaBase.'}</p>
+      {!token && <div role="alert" className="mt-5 rounded-xl border border-amber-500/30 bg-amber-500/10 p-3 text-sm text-amber-200">{isEnglish ? 'Request a new recovery email from the application that created your account.' : 'Solicite um novo e-mail de recuperação no aplicativo que criou sua conta.'}</div>}
       {error && <div role="alert" className="mt-5 rounded-xl border border-red-500/30 bg-red-500/10 p-3 text-sm text-red-300">{error}</div>}
       {success ? <div role="status" className="mt-5 rounded-xl border border-emerald-500/30 bg-emerald-500/10 p-4 text-sm text-emerald-300">{isEnglish ? 'Password updated. Return to the application and sign in with the new password.' : 'Senha atualizada. Volte ao aplicativo e entre com a nova senha.'}</div> :
         <form onSubmit={submit} className="mt-6 space-y-4">

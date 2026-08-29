@@ -37,6 +37,8 @@ export const UserMenu: React.FC = () => {
     <div className="relative" ref={menuRef}>
       <button
         onClick={() => setIsOpen(!isOpen)}
+        aria-label={isEnglish ? 'Account menu' : 'Menu da conta'}
+        aria-expanded={isOpen}
         className="flex items-center gap-2.5 p-1.5 rounded-xl hover:bg-white/[0.06] transition-all border border-transparent hover:border-white/10 group text-left"
       >
         <div className="relative">

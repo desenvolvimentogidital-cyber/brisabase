@@ -4,6 +4,7 @@ export default defineConfig({
   testDir: './e2e',
   timeout: 60_000,
   fullyParallel: false,
+  workers: process.env.CI ? 1 : undefined,
   retries: process.env.CI ? 1 : 0,
   reporter: [['list'], ['html', { outputFolder: 'playwright-report', open: 'never' }]],
   outputDir: 'test-results/playwright',
@@ -20,10 +21,12 @@ export default defineConfig({
     },
     {
       name: 'tablet',
+      testMatch: ['**/admin-ui-smoke.spec.ts', '**/public-auth-smoke.spec.ts', '**/user-password-reset.spec.ts'],
       use: { ...devices['Desktop Chrome'], viewport: { width: 768, height: 1024 } },
     },
     {
       name: 'mobile',
+      testMatch: ['**/admin-ui-smoke.spec.ts', '**/public-auth-smoke.spec.ts', '**/user-password-reset.spec.ts'],
       use: { ...devices['Desktop Chrome'], viewport: { width: 390, height: 844 } },
     },
   ],

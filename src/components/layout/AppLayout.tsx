@@ -65,13 +65,13 @@ export const AppLayout: React.FC<React.PropsWithChildren> = ({ children }) => {
   return (
     <div className="min-h-screen bg-[#020617] text-slate-100 flex flex-col font-sans selection:bg-cyan-500/30">
       {/* Desktop & Tablet Persistent Sidebar */}
-      <div className="hidden md:block">
+      <div className="hidden lg:block">
         <Sidebar onOpenNewProject={() => setIsNewProjectModalOpen(true)} />
       </div>
 
       {/* Mobile Drawer */}
       {mobileMenuOpen && (
-        <div className="fixed inset-0 z-50 md:hidden flex">
+        <div className="fixed inset-0 z-50 lg:hidden flex">
           <div
             className="fixed inset-0 bg-[#020617]/80 backdrop-blur-md"
             onClick={() => setMobileMenuOpen(false)}
@@ -96,7 +96,7 @@ export const AppLayout: React.FC<React.PropsWithChildren> = ({ children }) => {
       {/* Main Content Area */}
       <div
         className={`flex-1 flex flex-col min-w-0 transition-all duration-300 ${
-          sidebarCollapsed ? 'md:pl-20' : 'md:pl-64'
+          sidebarCollapsed ? 'lg:pl-20' : 'lg:pl-64'
         }`}
       >
         <Header onToggleMobileMenu={() => setMobileMenuOpen(true)} />

@@ -34,7 +34,8 @@ export const Header: React.FC<HeaderProps> = ({ onToggleMobileMenu }) => {
         {onToggleMobileMenu && (
           <button
             onClick={onToggleMobileMenu}
-            className="md:hidden p-2 rounded-xl text-slate-400 hover:text-white hover:bg-white/[0.06]"
+            aria-label={language === 'en-US' ? 'Open navigation menu' : 'Abrir menu de navegação'}
+            className="lg:hidden p-2 rounded-xl text-slate-400 hover:text-white hover:bg-white/[0.06]"
           >
             <Menu className="w-5 h-5" />
           </button>
