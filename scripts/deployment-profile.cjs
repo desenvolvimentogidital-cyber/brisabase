@@ -1,4 +1,5 @@
-const { access, copyFile, mkdir } = require('node:fs/promises');
+const crypto = require('node:crypto');
+const { access, chmod, mkdir, readFile, writeFile } = require('node:fs/promises');
 const { constants } = require('node:fs');
 const path = require('node:path');
 const { spawnSync } = require('node:child_process');
@@ -67,6 +68,54 @@ function dockerComposeArgs(selected, tail = []) {
   return args;
 }
 
+function randomSecret(bytes = 48) {
+  return crypto.randomBytes(bytes).toString('base64url');
+}
+
+function envValue(source, key, value) {
+  const line = new RegExp(`^${key}=.*$`, 'm');
+  if (!line.test(source)) return source;
+  return source.replace(line, `${key}=${value}`);
+}
+
+function secureTemplate(selected, template) {
+  if (selected.name === 'hobby') return { content: template, generated: [] };
+
+  const common = {
+    JWT_SECRET: randomSecret(),
+    AUTH_ENCRYPTION_KEY: randomSecret(),
+    ADMIN_BOOTSTRAP_TOKEN: randomSecret(),
+    BACKUP_ENCRYPTION_KEY: randomSecret(),
+    BRISABASE_OPERATIONS_TOKEN: randomSecret(),
+    BRISABASE_PITR_OPERATOR_TOKEN: randomSecret(),
+  };
+  const values = selected.name === 'self-hosted'
+    ? {
+        ...common,
+        POSTGRES_PASSWORD: randomSecret(36),
+        DATABASE_APP_PASSWORD: randomSecret(36),
+        REDIS_PASSWORD: randomSecret(36),
+        MINIO_ROOT_USER: `bbroot_${crypto.randomBytes(12).toString('hex')}`,
+        MINIO_ROOT_PASSWORD: randomSecret(36),
+        S3_ACCESS_KEY: `bbapp_${crypto.randomBytes(12).toString('hex')}`,
+        S3_SECRET_KEY: randomSecret(36),
+        FUNCTIONS_EXECUTOR_TOKEN: randomSecret(),
+        HOSTING_CADDY_ASK_TOKEN: randomSecret(),
+      }
+    : common;
+
+  let content = template;
+  for (const [key, value] of Object.entries(values)) content = envValue(content, key, value);
+
+  if (selected.name === 'self-hosted') {
+    content = envValue(content, 'DATABASE_URL', `postgresql://brisabase_app:${values.DATABASE_APP_PASSWORD}@postgres:5432/brisabase`);
+    content = envValue(content, 'DATABASE_MIGRATION_URL', `postgresql://brisabase_app:${values.DATABASE_APP_PASSWORD}@postgres:5432/brisabase`);
+    content = envValue(content, 'REDIS_URL', `redis://:${values.REDIS_PASSWORD}@redis:6379`);
+  }
+
+  return { content, generated: Object.keys(values) };
+}
+
 async function init(selected) {
   if (await exists(selected.envFile)) {
     print({ profile: selected.name, envFile: selected.envFile, created: false, reason: 'already-exists' });
@@ -74,14 +123,19 @@ async function init(selected) {
   }
   if (!await exists(selected.example)) throw new Error(`Missing ${selected.example}.`);
   await mkdir(path.dirname(path.join(root, selected.envFile)), { recursive: true });
-  await copyFile(path.join(root, selected.example), path.join(root, selected.envFile), constants.COPYFILE_EXCL);
+  const template = await readFile(path.join(root, selected.example), 'utf8');
+  const prepared = secureTemplate(selected, template);
+  const target = path.join(root, selected.envFile);
+  await writeFile(target, prepared.content, { encoding: 'utf8', mode: 0o600, flag: 'wx' });
+  await chmod(target, 0o600).catch(() => undefined);
   print({
     profile: selected.name,
     envFile: selected.envFile,
     created: true,
+    generatedSecrets: prepared.generated,
     next: selected.name === 'hobby'
       ? `npm run deployment -- up ${selected.name}`
-      : `Review ${selected.envFile}, replace all placeholders, then run npm run deployment -- doctor ${selected.name}`,
+      : `Review ${selected.envFile}, configure domains/images/external credentials, then run npm run deployment -- doctor ${selected.name}`,
   });
 }
 
@@ -130,7 +184,7 @@ async function logs(selected) {
 }
 
 function help() {
-  print(`BrisaBase Deployment Profiles\n\nUsage:\n  npm run deployment -- init [hobby|self-hosted|enterprise]\n  npm run deployment -- doctor [profile]\n  npm run deployment -- up [profile]\n  npm run deployment -- down [profile]\n  npm run deployment -- status [profile]\n  npm run deployment -- logs [profile]\n\nProfiles:\n  hobby        Local Docker stack for beginners and prototypes\n  self-hosted  Single-server production deployment\n  enterprise   External PostgreSQL/Redis/S3 with Docker application planes`);
+  print(`BrisaBase Deployment Profiles\n\nUsage:\n  npm run deployment -- init [hobby|self-hosted|enterprise]\n  npm run deployment -- doctor [profile]\n  npm run deployment -- up [profile]\n  npm run deployment -- down [profile]\n  npm run deployment -- status [profile]\n  npm run deployment -- logs [profile]\n\nProfiles:\n  hobby        Local Docker stack for beginners and prototypes\n  self-hosted  Single-server production deployment\n  enterprise   External PostgreSQL/Redis/S3 with Docker application planes\n\nInit behavior:\n  Hobby is ready with local-only development defaults. Self-Hosted and Enterprise\n  generate independent BrisaBase secrets automatically; domains, immutable images\n  and externally managed infrastructure credentials still require operator input.`);
 }
 
 async function main() {
