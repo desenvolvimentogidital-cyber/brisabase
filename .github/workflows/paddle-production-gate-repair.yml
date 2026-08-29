@@ -1,0 +1,64 @@
+name: Paddle Production Gate Repair
+
+on:
+  push:
+    branches:
+      - fix/paddle-production-release-gate
+
+permissions:
+  contents: write
+
+jobs:
+  repair:
+    runs-on: ubuntu-24.04
+    steps:
+      - name: Checkout repair branch
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+        with:
+          fetch-depth: 0
+      - name: Configure Node.js 22
+        uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020
+        with:
+          node-version: 22
+          cache: npm
+      - name: Install locked dependencies
+        run: npm ci
+      - name: Replace legacy Stripe Compose wiring with Paddle
+        shell: bash
+        run: |
+          node <<'NODE'
+          const fs = require('node:fs');
+          const file = 'docker-compose.production.yml';
+          const oldBlock = `      BILLING_PROVIDER: \${BILLING_PROVIDER:-disabled}
+      STRIPE_SECRET_KEY: \${STRIPE_SECRET_KEY:-}
+      STRIPE_WEBHOOK_SECRET: \${STRIPE_WEBHOOK_SECRET:-}
+      STRIPE_PRICE_PRO: \${STRIPE_PRICE_PRO:-}
+      STRIPE_PRICE_TEAM: \${STRIPE_PRICE_TEAM:-}
+      STRIPE_PRICE_ENTERPRISE: \${STRIPE_PRICE_ENTERPRISE:-}
+      STRIPE_AUTOMATIC_TAX: \${STRIPE_AUTOMATIC_TAX:-false}`;
+          const newBlock = `      BILLING_PROVIDER: \${BILLING_PROVIDER:-disabled}
+      PADDLE_ENVIRONMENT: \${PADDLE_ENVIRONMENT:-sandbox}
+      PADDLE_API_KEY: \${PADDLE_API_KEY:-}
+      PADDLE_WEBHOOK_SECRET: \${PADDLE_WEBHOOK_SECRET:-}
+      PADDLE_PRICE_PRO: \${PADDLE_PRICE_PRO:-}
+      PADDLE_PRICE_TEAM: \${PADDLE_PRICE_TEAM:-}
+      PADDLE_PRICE_ENTERPRISE: \${PADDLE_PRICE_ENTERPRISE:-}`;
+          const source = fs.readFileSync(file, 'utf8');
+          if (!source.includes(oldBlock)) throw new Error('Legacy Stripe Compose billing block not found exactly once.');
+          if (source.indexOf(oldBlock) !== source.lastIndexOf(oldBlock)) throw new Error('Legacy Stripe Compose billing block appears more than once.');
+          fs.writeFileSync(file, source.replace(oldBlock, newBlock));
+          NODE
+      - name: Remove one-shot workflow before integrity generation
+        run: rm .github/workflows/paddle-production-gate-repair.yml
+      - name: Verify cumulative phase contract
+        run: npm run phase8:verify
+      - name: Refresh source integrity manifest
+        run: node scripts/release-source-manifest.cjs generate
+      - name: Commit repaired production contract
+        shell: bash
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add docker-compose.production.yml scripts/verify-phase8.cjs SOURCE_SHA256SUMS.txt .github/workflows/paddle-production-gate-repair.yml
+          git commit -m "fix: align production release gate with Paddle"
+          git push origin HEAD:fix/paddle-production-release-gate
