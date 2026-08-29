@@ -6,14 +6,14 @@ on:
       - fix/final-release-gates
 
 permissions:
-  contents: write
+  contents: read
 
 jobs:
   preflight:
     runs-on: ubuntu-latest
     timeout-minutes: 90
     steps:
-      - name: Checkout certification branch
+      - name: Checkout certification commit
         uses: actions/checkout@v4
         with:
           fetch-depth: 0
@@ -23,51 +23,6 @@ jobs:
         with:
           node-version: 22
           cache: npm
-
-      - name: Synchronize audited certification corrections
-        run: node scripts/final-release-fixes-v2.cjs
-
-      - name: Align supported webhook browser contract
-        shell: bash
-        run: |
-          node <<'NODE'
-          const fs = require('node:fs');
-          const path = 'e2e/admin-ui-smoke.spec.ts';
-          let text = fs.readFileSync(path, 'utf8').replace(/\r\n/g, '\n');
-          const before = "    expect(legacyWebhookCalls, 'The real API screen must not call an unimplemented webhook endpoint').toEqual([]);\n    await expect(page.getByRole('button', { name: 'Webhooks & Gateways', exact: true })).toHaveCount(0);";
-          const after = "    const webhookTab = page.getByRole('button', { name: 'Webhooks & Gateways', exact: true });\n    await expect(webhookTab).toBeVisible();\n    await webhookTab.click();\n    await page.waitForTimeout(500);\n    expect(legacyWebhookCalls, 'Supported webhooks must never fall back to the removed project-scoped webhook endpoint').toEqual([]);";
-          if (text.includes(after)) {
-            console.log('Webhook browser contract already aligned.');
-          } else {
-            if (!text.includes(before)) throw new Error('Webhook browser contract patch target not found.');
-            text = text.replace(before, after);
-            fs.writeFileSync(path, text, 'utf8');
-            console.log('Aligned webhook browser contract with supported /api/webhooks implementation.');
-          }
-          NODE
-
-      - name: Persist audited certification corrections
-        shell: bash
-        run: |
-          audited_paths=(
-            server/config.ts
-            server/billing/localBillingEngine.ts
-            server/tests/production-config-contract.test.ts
-            server/tests/admin-ui-api-mode-contract.test.ts
-            server/tests/billing-enterprise-iac-phase8-contract.test.cjs
-            server/tests/docker.integration.test.ts
-            e2e/admin-ui-smoke.spec.ts
-            src/index.css
-          )
-          if [[ -n "$(git status --porcelain -- "${audited_paths[@]}")" ]]; then
-            git config user.name "BrisaBase Release Bot"
-            git config user.email "noreply@brisabase.local"
-            git add -- "${audited_paths[@]}"
-            git commit -m "fix: persist audited final certification corrections"
-            git push origin "HEAD:${GITHUB_REF_NAME}"
-          else
-            echo "Audited certification corrections are already synchronized."
-          fi
 
       - name: Install locked dependencies
         run: npm ci
@@ -93,10 +48,10 @@ jobs:
         shell: powershell
 
     steps:
-      - name: Checkout latest certification branch
+      - name: Checkout certification commit
         uses: actions/checkout@v4
         with:
-          ref: fix/final-release-gates
+          ref: ${{ github.sha }}
           fetch-depth: 0
 
       - name: Configure Node.js 22
