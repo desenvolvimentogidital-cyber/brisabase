@@ -37,6 +37,7 @@ jobs:
             server/tests/admin-ui-api-mode-contract.test.ts
             server/tests/billing-enterprise-iac-phase8-contract.test.cjs
             server/tests/docker.integration.test.ts
+            e2e/admin-ui-smoke.spec.ts
             src/index.css
           )
           if [[ -n "$(git status --porcelain -- "${audited_paths[@]}")" ]]; then
