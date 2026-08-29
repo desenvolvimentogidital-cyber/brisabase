@@ -1,4 +1,5 @@
-import { test, expect, Page, APIRequestContext } from '@playwright/test';
+import { test, expect, Page } from '@playwright/test';
+import { ensureReleaseAdmin } from './helpers/releaseAdmin';
 
 let PROJECT_ID = '';
 let ORGANIZATION_ID = '';
@@ -6,9 +7,6 @@ let ENVIRONMENT_ID = '';
 let ACCESS_TOKEN = '';
 let ADMIN_USER: Record<string, unknown> = {};
 const RUN_ID = String(process.env.ADMIN_SMOKE_RUN_ID || process.env.GITHUB_RUN_ID || 'local').replace(/[^a-zA-Z0-9_-]/g, '-');
-const ADMIN_EMAIL = process.env.ADMIN_SMOKE_EMAIL || `admin-ui-smoke-${RUN_ID}@brisabase.local`;
-const ADMIN_PASSWORD = 'SuperSecretSmokePassword123!';
-const ADMIN_BOOTSTRAP_TOKEN = process.env.ADMIN_BOOTSTRAP_TOKEN || 'local-bootstrap-token-for-isolated-e2e-only-2026';
 
 const PAGES = [
   { path: () => '/', name: 'Dashboard' },
@@ -25,76 +23,6 @@ const PAGES = [
   { path: () => '/billing', name: 'Billing' },
   { path: () => '/docs', name: 'Documentation' },
 ];
-
-function parseRetryAfter(headers: Record<string, string>): number {
-  const raw = headers['retry-after'];
-  if (!raw) return 0;
-  const seconds = Number(raw);
-  if (!Number.isNaN(seconds) && seconds > 0) return seconds;
-  const date = Date.parse(raw);
-  if (!Number.isNaN(date)) return Math.max(0, Math.ceil((date - Date.now()) / 1000));
-  return 0;
-}
-
-async function signUpSmokeAdmin(request: APIRequestContext) {
-  const maxAttempts = 3;
-  const url = '/api/admin/auth/signup';
-  const body = { email: ADMIN_EMAIL, password: ADMIN_PASSWORD, name: 'Smoke Admin' };
-  const headers = { 'x-admin-bootstrap-token': ADMIN_BOOTSTRAP_TOKEN, 'content-type': 'application/json' };
-
-  let lastResponse: Awaited<ReturnType<typeof request.post>> | null = null;
-  for (let attempt = 1; attempt <= maxAttempts; attempt++) {
-    const response = await request.post(url, { headers, data: body });
-    lastResponse = response;
-    if (response.status() === 201) return response;
-    if (response.status() === 429) {
-      const retryAfterSeconds = parseRetryAfter(response.headers());
-      if (attempt === maxAttempts) {
-        throw new Error(`Admin signup remained rate limited after ${maxAttempts} attempts (HTTP 429, Retry-After: ${retryAfterSeconds || 'absent'}).`);
-      }
-      await new Promise((resolve) => setTimeout(resolve, (retryAfterSeconds || attempt * 2) * 1000));
-      continue;
-    }
-    return response;
-  }
-  throw new Error(`Admin signup did not produce a response after ${maxAttempts} attempts (last HTTP ${lastResponse?.status() ?? 'unknown'}).`);
-}
-
-async function loginSmokeAdmin(request: APIRequestContext) {
-  const maxAttempts = 3;
-  for (let attempt = 1; attempt <= maxAttempts; attempt++) {
-    const response = await request.post('/api/admin/auth/login', {
-      headers: { 'content-type': 'application/json' },
-      data: { email: ADMIN_EMAIL, password: ADMIN_PASSWORD },
-    });
-    if (response.status() !== 429) return response;
-    const retryAfterSeconds = parseRetryAfter(response.headers());
-    if (attempt === maxAttempts) {
-      throw new Error(`Admin login remained rate limited after ${maxAttempts} attempts (HTTP 429, Retry-After: ${retryAfterSeconds || 'absent'}).`);
-    }
-    await new Promise((resolve) => setTimeout(resolve, (retryAfterSeconds || attempt * 2) * 1000));
-  }
-  throw new Error('Admin login did not produce a response.');
-}
-
-async function ensureSmokeAdmin(request: APIRequestContext) {
-  const existingLogin = await loginSmokeAdmin(request);
-  if (existingLogin.status() === 200) return existingLogin;
-  if (existingLogin.status() !== 401) {
-    throw new Error(`Existing smoke-admin login expected HTTP 200 or 401, received HTTP ${existingLogin.status()}.`);
-  }
-
-  const signupResponse = await signUpSmokeAdmin(request);
-  if (![201, 409].includes(signupResponse.status())) {
-    throw new Error(`Admin signup expected HTTP 201 or 409, received HTTP ${signupResponse.status()}.`);
-  }
-
-  const loginResponse = await loginSmokeAdmin(request);
-  if (loginResponse.status() !== 200) {
-    throw new Error(`Admin login after smoke-admin initialization failed with HTTP ${loginResponse.status()}.`);
-  }
-  return loginResponse;
-}
 
 async function checkPage(page: Page, path: string, name: string): Promise<void> {
   const errors: string[] = [];
@@ -141,9 +69,7 @@ async function checkPage(page: Page, path: string, name: string): Promise<void> 
 
 test.describe('Admin UI Smoke Tests', () => {
   test.beforeAll(async ({ request }) => {
-    const loginResponse = await ensureSmokeAdmin(request);
-    expect(loginResponse.status(), `Login failed for smoke admin`).toBe(200);
-    const loginBody = await loginResponse.json();
+    const loginBody = await ensureReleaseAdmin();
     ACCESS_TOKEN = loginBody.access_token;
     ADMIN_USER = loginBody.user;
     const authorization = `Bearer ${ACCESS_TOKEN}`;

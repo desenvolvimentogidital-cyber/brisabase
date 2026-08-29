@@ -5,6 +5,7 @@ const API_URL = process.env.ADMIN_UI_URL || 'http://localhost:3000';
 const runId = Date.now().toString(36);
 const adminEmail = `mfa.${runId}@brisabase.local`;
 const adminPassword = 'SuperSecretMfaPassword123!';
+const adminBootstrapToken = process.env.ADMIN_BOOTSTRAP_TOKEN || 'local-bootstrap-token-for-isolated-e2e-only-2026';
 
 async function request(path: string, init: RequestInit = {}): Promise<Response> {
   return fetch(`${API_URL}${path}`, init);
@@ -20,7 +21,7 @@ test.describe('MFA Integration E2E', () => {
     // Create admin user
     const signup = await request('/api/admin/auth/signup', {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
+      headers: { 'Content-Type': 'application/json', 'x-admin-bootstrap-token': adminBootstrapToken },
       body: JSON.stringify({ email: adminEmail, password: adminPassword, name: 'MFA Admin' }),
     });
     expect(signup.status).toBe(201);

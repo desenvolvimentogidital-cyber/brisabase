@@ -7,10 +7,10 @@ test.describe('Project user password reset page', () => {
     await page.goto(`/auth/v1/password-reset?token=${token}`, { waitUntil: 'networkidle' });
 
     expect(new URL(page.url()).pathname).toBe('/auth/v1/password-reset');
-    await expect(page.getByRole('heading', { name: 'Choose a new password' })).toBeVisible();
-    await expect(page.getByLabel('New password')).toBeVisible();
-    await expect(page.getByLabel('Confirm new password')).toBeVisible();
-    await expect(page.getByRole('button', { name: 'Update password' })).toBeEnabled();
+    await expect(page.getByRole('heading', { name: /^(Definir nova senha|Set a new password)$/i })).toBeVisible();
+    await expect(page.getByLabel(/^(Nova senha|New password)$/i)).toBeVisible();
+    await expect(page.getByLabel(/^(Confirmar nova senha|Confirm new password)$/i)).toBeVisible();
+    await expect(page.getByRole('button', { name: /^(Atualizar senha|Update password)$/i })).toBeEnabled();
     await expect(page.getByRole('heading', { name: /sign in/i })).toHaveCount(0);
   });
 
@@ -18,8 +18,8 @@ test.describe('Project user password reset page', () => {
     await page.goto('/auth/v1/password-reset', { waitUntil: 'networkidle' });
 
     expect(new URL(page.url()).pathname).toBe('/auth/v1/password-reset');
-    await expect(page.getByRole('heading', { name: 'Choose a new password' })).toBeVisible();
-    await expect(page.getByRole('button', { name: 'Update password' })).toBeDisabled();
-    await expect(page.getByText('Request a new recovery email from the application that created your account.')).toBeVisible();
+    await expect(page.getByRole('heading', { name: /^(Definir nova senha|Set a new password)$/i })).toBeVisible();
+    await expect(page.getByRole('button', { name: /^(Atualizar senha|Update password)$/i })).toBeDisabled();
+    await expect(page.getByRole('alert')).toContainText(/Solicite um novo e-mail de recuperação|Request a new recovery email/i);
   });
 });

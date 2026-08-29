@@ -49,6 +49,10 @@ for (const file of ['scripts/run-docker-release-gates.sh', 'scripts/run-docker-r
 
 const playwright = read('playwright.config.ts');
 for (const project of ['desktop', 'tablet', 'mobile']) assert.match(playwright, new RegExp(`name: '${project}'`));
+assert.match(playwright, /workers: process\.env\.CI \? 1 : undefined/, 'Stateful browser certification must be serialized in CI.');
+for (const spec of ['admin-ui-smoke.spec.ts', 'public-auth-smoke.spec.ts', 'user-password-reset.spec.ts']) {
+  assert.match(playwright, new RegExp(spec.replaceAll('.', '\\.')), `${spec} must run in the responsive tablet/mobile matrix.`);
+}
 assert.match(playwright, /trace: 'retain-on-failure'/, 'Failed browser tests must retain a trace.');
 assert.match(playwright, /video: 'retain-on-failure'/, 'Failed browser tests must retain video evidence.');
 
