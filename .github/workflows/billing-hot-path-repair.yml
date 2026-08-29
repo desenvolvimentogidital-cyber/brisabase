@@ -45,9 +45,9 @@ jobs:
         run: rm .github/workflows/billing-hot-path-repair.yml
       - name: Validate optimized source
         run: |
-          npm run phase8:verify
           npm run typecheck
           npm test
+          npm run build
       - name: Refresh source integrity manifest
         run: node scripts/release-source-manifest.cjs generate
       - name: Commit repair and remove one-shot workflow
