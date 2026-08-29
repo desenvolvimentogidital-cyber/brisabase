@@ -20,9 +20,9 @@
 - [ ] quotas/usage verificados com o plano esperado.
 
 ## Billing
-- [ ] modo `disabled` ou Stripe escolhido explicitamente;
-- [ ] webhook Stripe registrado no endpoint bruto da release;
-- [ ] checkout/portal/invoice/refund testados em ambiente Stripe de teste antes de live keys;
+- [ ] beta público: `BILLING_PROVIDER=disabled` confirmado; ativação futura: `paddle`;
+- [ ] antes de cobrança real, webhook Paddle registrado em `/billing/v1/paddle/webhook` e assinatura validada;
+- [ ] checkout/portal/subscription/transaction/refund testados em Paddle Sandbox antes de credenciais Live;
 - [ ] pricing, impostos, cancelamento e política de refunds aprovados comercial/juridicamente.
 
 ## Enterprise

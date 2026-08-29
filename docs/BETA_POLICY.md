@@ -2,12 +2,13 @@
 
 ## Estado de lançamento
 
-Enquanto os itens legais e operacionais do `docs/GO_LIVE_CHECKLIST.md` não estiverem aprovados, o BrisaBase deve operar somente como **beta fechado**, com participantes convidados e dados não críticos. Cadastro público aberto e cobrança real permanecem bloqueados.
+O BrisaBase pode operar como **beta público gratuito** quando os gates técnicos do mesmo SHA estiverem verdes e os itens legais e operacionais aplicáveis do `docs/GO_LIVE_CHECKLIST.md` estiverem aprovados. Durante essa fase, cadastro público pode ser habilitado, mas cobrança real permanece bloqueada.
 
-## Compromissos do beta fechado
+## Compromissos do beta público gratuito
 
 - disponibilidade e suporte em melhor esforço, sem SLA;
-- `BILLING_PROVIDER=disabled` por padrão e nenhuma cobrança real;
+- `BILLING_PROVIDER=disabled` obrigatório no beta e nenhuma cobrança real;
+- Paddle é o provedor comercial planejado, mas credenciais, checkout e webhooks live permanecem inativos até validação dos objetivos do beta;
 - somente releases identificadas por tag imutável e aprovadas no mesmo SHA pelo **BrisaBase Production Gate**;
 - registro de SBOM, manifesto SHA-256, imagens por digest e evidências de teste por candidato;
 - incidentes de segurança enviados por Security Advisory privado;
@@ -21,6 +22,6 @@ Enquanto os itens legais e operacionais do `docs/GO_LIVE_CHECKLIST.md` não esti
 - SDKs marcados como `preview` não possuem garantia de estabilidade;
 - o beta não deve receber dados sensíveis, regulados ou cuja perda cause impacto material.
 
-## Critério para abrir o cadastro
+## Critério para ativar cobrança
 
-O cadastro público só pode ser ativado quando licença, Termos, Privacidade, subprocessadores, canal de privacidade, suporte, on-call, alertas, restore, rollback, painéis de segurança e checklist de produção estiverem aprovados por responsáveis identificados.
+A cobrança só pode ser ativada depois que os objetivos do beta forem validados e pricing, impostos, cancelamento, refunds, suporte e operação estiverem aprovados. A ativação deve ocorrer primeiro em Paddle Sandbox e só depois com credenciais Paddle Live.
