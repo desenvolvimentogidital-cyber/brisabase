@@ -15,10 +15,12 @@ export const Login: React.FC = () => {
   const [mfaRequired, setMfaRequired] = useState(false);
   const [loading, setLoading] = useState(false);
   const [showPassword, setShowPassword] = useState(false);
+  const [loginError, setLoginError] = useState<string | null>(null);
 
   const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault();
     setLoading(true);
+    setLoginError(null);
     try {
       if (isRealMode) {
         const result = await adminAuthService.login(email, password, mfaRequired ? totpCode : undefined);
@@ -36,7 +38,10 @@ export const Login: React.FC = () => {
       }
       navigate('/');
     } catch (error) {
-      showToast(isEnglish ? 'Login failed' : 'Falha no login', error instanceof Error ? error.message : (isEnglish ? 'Invalid credentials.' : 'Credenciais inválidas.'), 'error');
+      const title = isEnglish ? 'Login failed' : 'Falha no login';
+      const description = error instanceof Error ? error.message : (isEnglish ? 'Invalid credentials.' : 'Credenciais inválidas.');
+      setLoginError(description);
+      showToast(title, description, 'error');
     } finally {
       setLoading(false);
     }
@@ -78,6 +83,7 @@ export const Login: React.FC = () => {
           <label className="block"><span className="block mb-2 text-sm font-semibold">E-mail</span><div className="h-13 rounded-lg border border-[#53627a] bg-[#070f1e]/75 flex items-center px-4 gap-3 focus-within:border-cyan-400"><Mail className="w-4 h-4 text-slate-400"/><input value={email} onChange={e=>setEmail(e.target.value)} type="email" required placeholder="seu@email.com" className="w-full bg-transparent outline-none text-sm placeholder:text-slate-500"/></div></label>
           <label className="block"><span className="block mb-2 text-sm font-semibold">{isEnglish ? 'Password' : 'Senha'}</span><div className="h-13 rounded-lg border border-[#53627a] bg-[#070f1e]/75 flex items-center px-4 gap-3 focus-within:border-cyan-400"><Lock className="w-4 h-4 text-slate-400"/><input value={password} onChange={e=>setPassword(e.target.value)} type={showPassword ? 'text' : 'password'} required minLength={isRealMode ? 12 : 8} placeholder="••••••••••••" className="w-full bg-transparent outline-none text-sm placeholder:text-slate-500"/><button type="button" onClick={() => setShowPassword((v) => !v)} className="text-slate-400 hover:text-cyan-300" aria-label={showPassword ? (isEnglish ? 'Hide password' : 'Ocultar senha') : (isEnglish ? 'Show password' : 'Mostrar senha')}><EyeOff className="w-4 h-4"/></button></div><div className="mt-3 text-right"><Link to="/forgot-password" className="text-xs text-cyan-400">{isEnglish ? 'Forgot your password?' : 'Esqueceu sua senha?'}</Link></div></label>
           {mfaRequired && <label className="block"><span className="block mb-2 text-sm font-semibold">{isEnglish ? 'MFA code' : 'Código MFA'}</span><div className="h-13 rounded-lg border border-cyan-400/50 bg-[#070f1e]/75 flex items-center px-4 gap-3"><KeyRound className="w-4 h-4 text-cyan-400"/><input value={totpCode} onChange={e=>setTotpCode(e.target.value.replace(/\D/g, '').slice(0, 8))} inputMode="numeric" required placeholder="000000" className="w-full bg-transparent outline-none text-sm tracking-[0.35em]"/></div></label>}
+          {loginError && <div role="alert" aria-live="assertive" className="rounded-lg border border-red-400/40 bg-red-950/35 px-4 py-3 text-sm text-red-100">{loginError}</div>}
           <button type="submit" disabled={loading} className="w-full h-13 rounded-lg bg-gradient-to-r from-[#176dff] to-[#21c6ef] font-semibold flex items-center justify-center gap-3 shadow-[0_10px_30px_rgba(0,139,255,.25)] disabled:opacity-60">{loading ? (isEnglish ? 'Signing in...' : 'Entrando...') : mfaRequired ? (isEnglish ? 'Validate MFA' : 'Validar MFA') : (isEnglish ? 'Sign in' : 'Entrar')} <ArrowRight className="w-4 h-4"/></button>
         </form>
         <div className="my-8 flex items-center gap-5 text-xs text-slate-500"><span className="h-px flex-1 bg-[#334158]"/>{isEnglish ? 'OR' : 'OU'}<span className="h-px flex-1 bg-[#334158]"/></div>

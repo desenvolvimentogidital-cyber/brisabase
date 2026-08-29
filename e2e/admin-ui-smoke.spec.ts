@@ -1,12 +1,11 @@
 import { test, expect, Page } from '@playwright/test';
-import { ensureReleaseAdmin } from './helpers/releaseAdmin';
+import { ensureReleaseScope } from './helpers/releaseAdmin';
 
 let PROJECT_ID = '';
 let ORGANIZATION_ID = '';
 let ENVIRONMENT_ID = '';
 let ACCESS_TOKEN = '';
 let ADMIN_USER: Record<string, unknown> = {};
-const RUN_ID = String(process.env.ADMIN_SMOKE_RUN_ID || process.env.GITHUB_RUN_ID || 'local').replace(/[^a-zA-Z0-9_-]/g, '-');
 
 const PAGES = [
   { path: () => '/', name: 'Dashboard' },
@@ -67,36 +66,19 @@ async function checkPage(page: Page, path: string, name: string): Promise<void> 
   expect(errorState, `Protected page ${name} must not accept an API error state`).toBe(0);
 }
 
+async function openProjectNavigation(page: Page): Promise<void> {
+  const menuButton = page.getByRole('button', { name: /Abrir menu de navegação|Open navigation menu/i });
+  if (await menuButton.isVisible()) await menuButton.click();
+}
+
 test.describe('Admin UI Smoke Tests', () => {
-  test.beforeAll(async ({ request }) => {
-    const loginBody = await ensureReleaseAdmin();
-    ACCESS_TOKEN = loginBody.access_token;
-    ADMIN_USER = loginBody.user;
-    const authorization = `Bearer ${ACCESS_TOKEN}`;
-    const organizationsResponse = await request.get('/api/organizations', { headers: { Authorization: authorization } });
-    expect(organizationsResponse.status(), 'List smoke-admin organizations must return HTTP 200.').toBe(200);
-    const organizations = await organizationsResponse.json();
-    if (organizations.length === 0) {
-      const organizationResponse = await request.post('/api/organizations', {
-        headers: { Authorization: authorization, 'content-type': 'application/json' },
-        data: { name: `Smoke Organization ${RUN_ID}`, slug: `smoke-organization-${RUN_ID}` },
-      });
-      expect(organizationResponse.status(), 'Creating the isolated smoke organization must return HTTP 201.').toBe(201);
-      ORGANIZATION_ID = (await organizationResponse.json()).id;
-    } else {
-      ORGANIZATION_ID = organizations[0].id;
-    }
-    const projectResponse = await request.post('/api/projects', {
-      headers: { Authorization: authorization, 'x-organization-id': ORGANIZATION_ID },
-      data: { organization_id: ORGANIZATION_ID, name: `Smoke Project ${Date.now()}`, region: 'us-east-1' },
-    });
-    expect(projectResponse.status()).toBe(201);
-    PROJECT_ID = (await projectResponse.json()).id;
-    const environmentsResponse = await request.get(`/api/projects/${PROJECT_ID}/environments`, { headers: { Authorization: authorization, 'x-project-id': PROJECT_ID } });
-    expect(environmentsResponse.status(), 'List smoke-project environments must return HTTP 200.').toBe(200);
-    const environments = await environmentsResponse.json();
-    ENVIRONMENT_ID = environments.find((item: any) => item.type === 'production')?.id || environments[0]?.id;
-    expect(ENVIRONMENT_ID).toBeTruthy();
+  test.beforeAll(async () => {
+    const { session, scope } = await ensureReleaseScope();
+    ACCESS_TOKEN = session.access_token;
+    ADMIN_USER = session.user;
+    ORGANIZATION_ID = scope.organizationId;
+    PROJECT_ID = scope.projectId;
+    ENVIRONMENT_ID = scope.environmentId;
   });
 
   test.beforeEach(async ({ page }) => {
@@ -215,6 +197,7 @@ test.describe('Admin UI Smoke Tests', () => {
   test('Sidebar keeps each project section exactly once after scope hydration', async ({ page }) => {
     await page.goto('/database', { waitUntil: 'networkidle' });
     await page.waitForTimeout(1_000);
+    await openProjectNavigation(page);
 
     for (const label of ['Banco de Dados', 'Autenticação', 'Storage', 'Realtime', 'Segurança', 'APIs', 'Logs', 'Observabilidade']) {
       await expect(page.getByRole('link', { name: label, exact: true }), `${label} must not be duplicated in the sidebar`).toHaveCount(1);
