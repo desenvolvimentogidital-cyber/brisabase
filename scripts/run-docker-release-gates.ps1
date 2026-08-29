@@ -26,6 +26,13 @@ function Assert-NativeCommand {
   }
 }
 
+function Assert-DisposableProject {
+  param([Parameter(Mandatory = $true)][string]$ProjectName)
+  if ($ProjectName -notin @('brisabase-release-local', 'brisabase-release-production')) {
+    throw "Refusing destructive Compose cleanup for non-disposable project '$ProjectName'."
+  }
+}
+
 function Wait-BrisaBaseReadiness {
   param(
     [Parameter(Mandatory = $true)][string]$Url,
@@ -100,6 +107,11 @@ try {
   Write-Host "`n[2/8] Real local stack"
   docker @LocalComposeArgs config | Out-Null
   Assert-NativeCommand 'local Compose validation'
+  # A previous interrupted certification can leave named volumes behind. Reset
+  # only the fixed disposable project so every run truly starts from an empty DB.
+  Assert-DisposableProject -ProjectName $LocalProject
+  docker @LocalComposeArgs down --volumes --remove-orphans
+  Assert-NativeCommand 'local disposable pre-clean'
   $env:COMPOSE_PROJECT_NAME = $LocalProject
   $LocalStarted = $true
   docker @LocalComposeArgs up --detach --build
@@ -180,6 +192,9 @@ try {
   }
 
   Write-Host "`n[7/8] Final image, unprivileged PostgreSQL role and production behavior"
+  Assert-DisposableProject -ProjectName $ProductionProject
+  docker @ProductionComposeArgs down --volumes --remove-orphans
+  Assert-NativeCommand 'production disposable pre-clean'
   $ProductionStarted = $true
   docker @ProductionComposeArgs up --detach --build postgres redis minio minio-init mailpit brisabase
   if ($LASTEXITCODE -ne 0) {
