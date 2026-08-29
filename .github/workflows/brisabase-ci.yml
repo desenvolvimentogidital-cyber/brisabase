@@ -18,6 +18,9 @@ jobs:
           cache: npm
       - run: npm ci
 
+      - name: Verify source integrity manifest
+        run: npm run release:manifest:verify
+
       - name: Audit production dependencies
         run: npm audit --omit=dev --audit-level=high
 

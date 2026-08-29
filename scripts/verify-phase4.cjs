@@ -1,5 +1,6 @@
 const fs = require('fs');
 const path = require('path');
+const { isSemVerAtLeast } = require('./semver.cjs');
 const root = path.resolve(__dirname, '..');
 const read = (p) => fs.readFileSync(path.join(root,p),'utf8');
 const must = (p, needles) => { const s=read(p); for(const n of needles){ if(!s.includes(n)) throw new Error(`${p} missing: ${n}`); } };
@@ -7,7 +8,7 @@ const exists = (p) => { if(!fs.existsSync(path.join(root,p))) throw new Error(`M
 
 exists('server/db/migrations/019_storage_realtime_webhooks_phase4.sql');
 exists('PHASE4_COMPLETION.md');
-const pkg=JSON.parse(read('package.json')); const sdk=JSON.parse(read('developer/sdk/package.json')); const [major,minor,patch]=pkg.version.split('.').map(Number); if(major<0||(major===0&&minor<6)||[major,minor,patch].some((value)=>!Number.isFinite(value))) throw new Error('Platform version must be Phase 4 (0.6.0) or newer.'); if(sdk.version!==pkg.version) throw new Error('SDK version must match platform.'); if(!read('developer/cli/brisabase.mjs').includes(`const VERSION = '${pkg.version}'`)) throw new Error('CLI version must match platform.');
+const pkg=JSON.parse(read('package.json')); const sdk=JSON.parse(read('developer/sdk/package.json')); if(!isSemVerAtLeast(pkg.version,'0.6.0')) throw new Error('Platform version must be valid SemVer and Phase 4 (0.6.0) or newer.'); if(sdk.version!==pkg.version) throw new Error('SDK version must match platform.'); if(!read('developer/cli/brisabase.mjs').includes(`const VERSION = '${pkg.version}'`)) throw new Error('CLI version must match platform.');
 exists('server/webhooks/webhookEngine.ts');
 exists('server/routes/webhooks.ts');
 must('server/middleware/auth.ts', ['database', 'realtime', 'webhooks', 'backups']);

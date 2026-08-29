@@ -1,6 +1,6 @@
 {
   "name": "@brisabase/js",
-  "version": "1.0.0",
+  "version": "1.0.1-beta.1",
   "description": "Official JavaScript and TypeScript SDK for BrisaBase",
   "license": "UNLICENSED",
   "type": "module",

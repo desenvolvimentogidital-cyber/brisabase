@@ -1,4 +1,4 @@
-# BrisaBase 1.0 — Go-Live Checklist
+# BrisaBase 1.0.1-beta.1 — Go-Live Checklist
 
 ## Código e regressão
 - [ ] `npm run phase8:verify`
@@ -7,6 +7,7 @@
 - [ ] `npm test`
 - [ ] `npm run build`
 - [ ] `npm run test:browser`
+- [ ] `npm run release:manifest:verify`
 - [ ] `npm run release:validate:docker`
 
 ## Produção
@@ -35,11 +36,11 @@
 ## Legal e suporte
 - [ ] Termos e Política de Privacidade revisados por jurídico;
 - [ ] subprocessadores reais documentados;
-- [ ] canal de segurança e `security.txt` publicados;
+- [ ] habilitar Private Vulnerability Reporting e publicar o `security.txt` já versionado;
 - [ ] suporte/on-call e matriz de severidade aprovados.
 
 ## Git e release
-- [ ] tag `v1.0.0` criada após o runner final verde;
+- [ ] nova tag beta criada após o runner final verde no mesmo SHA;
 - [ ] commit/release imutável publicado;
-- [ ] artefato e manifesto SHA-256 arquivados;
+- [ ] SBOM, pacotes, digests, logs, traces e manifesto SHA-256 arquivados;
 - [ ] rollback da aplicação e do banco documentado/testado.
