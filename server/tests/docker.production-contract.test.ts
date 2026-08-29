@@ -124,7 +124,8 @@ async function runContract(): Promise<void> {
   await json(`/rest/v1/${table}?select=id`, 401, 'GET', undefined, { apikey: keyA.fullSecretKey, 'x-project-id': projectB.id, 'x-environment-id': environmentB.id });
   await json(`/rest/v1/${table}?select=id`, 401, 'GET', undefined, { apikey: keyB.fullSecretKey, 'x-project-id': projectA.id, 'x-environment-id': environmentA.id });
 
-  await json('/api/backups', 503, 'GET', undefined, scopeA);
+  const backups = await json('/api/backups', 200, 'GET', undefined, scopeA);
+  assert.ok(Array.isArray(backups), 'Production encrypted backup listing must be available when BACKUP_ENABLED=true.');
   await json('/api/functions', 403, 'GET', undefined, scopeA);
   await json('/api/infrastructure/overview', 503, 'GET', undefined, scopeA);
   await json('/api/ecosystem/overview', 503, 'GET', undefined, scopeA);
