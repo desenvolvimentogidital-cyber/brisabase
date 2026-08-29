@@ -63,7 +63,7 @@ export const AppLayout: React.FC<React.PropsWithChildren> = ({ children }) => {
   };
 
   return (
-    <div className="min-h-screen w-full max-w-full min-w-0 overflow-x-clip bg-[#020617] text-slate-100 flex flex-col font-sans selection:bg-cyan-500/30">
+    <div className="min-h-screen w-full max-w-full min-w-0 bg-[#020617] text-slate-100 flex flex-col font-sans selection:bg-cyan-500/30">
       {/* Desktop & Tablet Persistent Sidebar */}
       <div className="hidden lg:block">
         <Sidebar onOpenNewProject={() => setIsNewProjectModalOpen(true)} />
@@ -96,13 +96,13 @@ export const AppLayout: React.FC<React.PropsWithChildren> = ({ children }) => {
 
       {/* Main Content Area */}
       <div
-        className={`flex-1 flex flex-col w-full max-w-full min-w-0 overflow-x-clip transition-all duration-300 ${
+        className={`flex-1 flex flex-col w-full max-w-full min-w-0 transition-all duration-300 ${
           sidebarCollapsed ? 'lg:pl-20' : 'lg:pl-64'
         }`}
       >
         <Header onToggleMobileMenu={() => setMobileMenuOpen(true)} />
 
-        <main className="flex-1 min-w-0 w-full max-w-full overflow-x-clip p-3 sm:p-4 lg:p-5 mx-auto">
+        <main className="flex-1 min-w-0 w-full max-w-full p-3 sm:p-4 lg:p-5 mx-auto">
           {runtimeError && (
             <div className="mb-4 max-w-full break-words rounded-xl border border-amber-400/25 bg-amber-500/10 px-4 py-3 text-xs text-amber-100">
               <strong>{runtimeMode === 'real' ? 'Runtime real:' : 'Mock:'}</strong> {runtimeError}
