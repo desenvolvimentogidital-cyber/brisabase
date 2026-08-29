@@ -3,6 +3,10 @@ on:
   pull_request:
   push:
     branches: [main]
+
+permissions:
+  contents: read
+
 jobs:
   validate:
     runs-on: ubuntu-latest
@@ -13,6 +17,21 @@ jobs:
           node-version: 22
           cache: npm
       - run: npm ci
+
+      - name: Audit production dependencies
+        run: npm audit --omit=dev --audit-level=high
+
+      - name: Generate CycloneDX SBOM
+        run: node scripts/generate-sbom.cjs --output artifacts/brisabase.cdx.json
+
+      - name: Upload SBOM evidence
+        uses: actions/upload-artifact@v4
+        with:
+          name: brisabase-sbom
+          path: artifacts/brisabase.cdx.json
+          if-no-files-found: error
+          retention-days: 30
+
       - name: Validate Hobby Docker profile
         run: docker compose --env-file .env.hobby.example -f docker-compose.local.yml -f docker-compose.hobby.yml config --quiet
       - name: Validate Enterprise Docker profile
