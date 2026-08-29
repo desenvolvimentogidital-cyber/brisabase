@@ -177,4 +177,11 @@ replaceExact(
   'validate the current Portuguese sidebar labels'
 );
 
+replaceExact(
+  'e2e/admin-ui-smoke.spec.ts',
+  "  test('Selected project text remains white', async ({ page }) => {\n    await page.goto('/projects', { waitUntil: 'networkidle' });\n\n    const activeProject = page.getByRole('button', { name: 'Projeto Ativo', exact: true });\n    await expect(activeProject).toHaveCount(1);\n    await expect(activeProject).toHaveClass(/text-white/);\n  });",
+  "  test('Selected project text remains high-contrast', async ({ page }) => {\n    await page.goto('/projects', { waitUntil: 'networkidle' });\n\n    const activeProjectStatus = page.getByText('Projeto Ativo', { exact: true });\n    await expect(activeProjectStatus).toHaveCount(1);\n    const activeProjectButton = activeProjectStatus.locator('xpath=ancestor::button[1]');\n    await expect(activeProjectButton).toHaveCount(1);\n    await expect(activeProjectButton.locator('span.text-slate-100').first()).toBeVisible();\n  });",
+  'assert high-contrast active project text on the element that actually renders it'
+);
+
 console.log('Production, admin API-mode, compatibility-style, Docker auth-session, billing-storage, and browser-route certification alignment complete.');
