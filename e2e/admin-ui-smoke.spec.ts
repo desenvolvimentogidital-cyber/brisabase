@@ -60,13 +60,30 @@ async function checkPage(page: Page, path: string, name: string): Promise<void> 
   // not, which previously produced false positives on long mobile pages.
   const overflow = await page.evaluate(() => {
     const viewportWidth = window.innerWidth;
+    const isInsideLocalHorizontalScroller = (element: HTMLElement): boolean => {
+      let parent = element.parentElement;
+      while (parent && parent !== document.body && parent !== document.documentElement) {
+        const style = window.getComputedStyle(parent);
+        if (style.overflowX === 'auto' || style.overflowX === 'scroll') {
+          const rect = parent.getBoundingClientRect();
+          if (rect.left >= -1 && rect.right <= viewportWidth + 1 && rect.width <= viewportWidth + 1) return true;
+        }
+        parent = parent.parentElement;
+      }
+      return false;
+    };
+
     const offenders = Array.from(document.querySelectorAll<HTMLElement>('*'))
       .filter((element) => {
         const style = window.getComputedStyle(element);
         if (style.display === 'none' || style.visibility === 'hidden') return false;
         const rect = element.getBoundingClientRect();
         if (rect.width <= 0 || rect.height <= 0) return false;
-        return rect.left < -1 || rect.right > viewportWidth + 1 || rect.width > viewportWidth + 1;
+        const outsideViewport = rect.left < -1 || rect.right > viewportWidth + 1 || rect.width > viewportWidth + 1;
+        if (!outsideViewport) return false;
+        // Content inside a bounded horizontal scroller is intentionally reachable
+        // by the user and must not be confused with document-level overflow.
+        return !isInsideLocalHorizontalScroller(element);
       })
       .slice(0, 8)
       .map((element) => {

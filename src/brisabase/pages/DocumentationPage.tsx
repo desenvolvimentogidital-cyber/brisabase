@@ -287,7 +287,7 @@ export const DocumentationPage: React.FC = () => {
   };
 
   return (
-    <div className="space-y-6 pb-12">
+    <div className="min-w-0 max-w-full space-y-6 pb-12">
       <section className="overflow-hidden rounded-2xl border border-white/[0.09] bg-gradient-to-br from-purple-500/15 via-slate-900/70 to-orange-500/10 p-6 md:p-8">
         <div className="flex flex-col gap-5 md:flex-row md:items-end md:justify-between">
           <div className="max-w-2xl">
@@ -299,22 +299,22 @@ export const DocumentationPage: React.FC = () => {
         </div>
       </section>
 
-      <div className="grid gap-6 lg:grid-cols-[250px_minmax(0,1fr)]">
-        <aside className="h-fit rounded-2xl border border-white/[0.08] bg-slate-900/50 p-3 lg:sticky lg:top-6">
+      <div className="grid min-w-0 max-w-full grid-cols-[minmax(0,1fr)] gap-6 lg:grid-cols-[250px_minmax(0,1fr)]">
+        <aside className="min-w-0 max-w-full h-fit rounded-2xl border border-white/[0.08] bg-slate-900/50 p-3 lg:sticky lg:top-6">
           <p className="px-3 pb-2 pt-1 text-[10px] font-bold uppercase tracking-[0.16em] text-slate-500">Neste guia</p>
           <nav className="space-y-1" aria-label="Seções da documentação">
             {navigation.map(({ id, label, icon: Icon }) => {
               const active = activeSection === id;
               return <button key={id} onClick={() => setActiveSection(id)} className={`flex w-full items-center gap-3 rounded-xl px-3 py-2.5 text-left text-sm transition-colors ${active ? 'bg-purple-500/15 font-semibold text-white' : 'text-slate-400 hover:bg-white/[0.05] hover:text-white'}`}>
                 <Icon className="h-4 w-4 shrink-0 text-purple-300" />
-                <span className="flex-1">{label}</span>
-                {active && <ChevronRight className="h-4 w-4" />}
+                <span className="min-w-0 flex-1 break-words">{label}</span>
+                {active && <ChevronRight className="h-4 w-4 shrink-0" />}
               </button>;
             })}
           </nav>
         </aside>
 
-        <article className="space-y-6 rounded-2xl border border-white/[0.08] bg-slate-900/40 p-5 md:p-7">
+        <article className="min-w-0 max-w-full space-y-6 rounded-2xl border border-white/[0.08] bg-slate-900/40 p-5 md:p-7">
           {content[activeSection]}
           <div className="flex items-center gap-2 border-t border-white/[0.08] pt-5 text-xs text-slate-500"><Code2 className="h-4 w-4" /> Exemplos usam apenas o cliente público e o contrato HTTPS/WebSocket.</div>
         </article>
