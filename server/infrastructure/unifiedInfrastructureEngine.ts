@@ -4,6 +4,7 @@ import { realProjectDatabase } from '../db/realProjectDatabase';
 import { realStorageEngine } from '../storage/realStorageEngine';
 import { redisClient } from '../redis';
 import { dockerAdapter } from './dockerAdapter';
+import { hostingEngine } from '../platform/hostingEngine';
 
 export type UnifiedInfrastructureContext = {
   organizationId: string; projectId: string; environmentId: string; userId: string; role: string;
@@ -99,7 +100,13 @@ export class UnifiedInfrastructureEngine {
         if (process.env.BACKUP_ENABLED !== 'true') throw new Error('Backups are disabled in this BrisaBase instance.');
         provisionedConfig = { managed: true, provider: providerId, engine: 'embedded-backup' };
       } else if (service === 'domains') {
-        provisionedConfig = { managed: true, provider: providerId, requires: ['hosting','dns-verification'] };
+        const site = await hostingEngine.createSite({ ...ctx, requestId: undefined }, { name: name || 'App' });
+        provisionedConfig = { managed: true, provider: providerId, siteId: site.id, siteSlug: site.slug, builtInUrl: site.builtInUrl, customDomains: true };
+        provisionedEndpoint = site.builtInUrl;
+      } else if (service === 'deploy') {
+        const site = await hostingEngine.createSite({ ...ctx, requestId: undefined }, { name: name || 'App' });
+        provisionedConfig = { managed: true, provider: providerId, siteId: site.id, siteSlug: site.slug, builtInUrl: site.builtInUrl };
+        provisionedEndpoint = site.builtInUrl;
       }
       const updated=(await postgres.query<any>(`UPDATE infrastructure_resources SET status='active',endpoint=$2,config=$3,updated_at=now() WHERE id=$1 RETURNING *`,[row.id,provisionedEndpoint,JSON.stringify(provisionedConfig)]))[0];
       await this.audit(ctx,'service.activate','resource',row.id,{service,plan:row.plan,provider_id:providerId,provisioned:true,config:provisionedConfig});
