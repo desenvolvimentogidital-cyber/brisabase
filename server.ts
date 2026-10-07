@@ -69,6 +69,7 @@ import { webhooksRouter } from './server/routes/webhooks';
 import { webhookEngine } from './server/webhooks/webhookEngine';
 import { developerRouter } from './server/routes/developer';
 import { advancedDataRouter, advancedManagementRouter } from './server/routes/advancedPlatform';
+import { unifiedInfrastructureRouter } from './server/routes/unifiedInfrastructure';
 import { advancedPlatformEngine } from './server/platform/advancedPlatformEngine';
 
 async function startServer() {
@@ -161,6 +162,7 @@ async function startServer() {
 
   app.use(authMiddleware);
   app.use(controlPlaneAuthorizationMiddleware);
+  app.use(unifiedInfrastructureRouter);
   if (config.realtime.enabled) app.use(realtimeRouter);
   else app.use('/api/realtime', (_req, res) => res.status(503).json({ error: { code: 'REALTIME_DISABLED', message: 'Realtime is disabled by configuration.' } }));
   app.use(organizationsRouter);
