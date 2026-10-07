@@ -66,6 +66,14 @@ export class UnifiedInfrastructureEngine {
     return postgres.query<any>('SELECT r.*,p.name provider_name FROM infrastructure_resources r LEFT JOIN infrastructure_providers p ON p.id=r.provider_id WHERE r.project_id=$1 AND (r.environment_id=$2 OR r.environment_id IS NULL) ORDER BY r.created_at DESC',[ctx.projectId,ctx.environmentId]);
   }
 
+  private async recordUsage(ctx:UnifiedInfrastructureContext, service:string, metric:string, quantity:number, unit:string, metadata:any = {}): Promise<void> {
+    if (!Number.isFinite(quantity) || quantity === 0) return;
+    await postgres.execute(
+      'INSERT INTO infrastructure_usage_events(id,organization_id,project_id,environment_id,service,metric,quantity,unit,metadata) VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9)',
+      [id('use'),ctx.organizationId,ctx.projectId,ctx.environmentId,service,metric,quantity,unit,JSON.stringify(metadata || {})],
+    );
+  }
+
   async activate(ctx:UnifiedInfrastructureContext,input:any){
     assertManage(ctx);
     const service=String(input.service||'').trim();
@@ -107,6 +115,12 @@ export class UnifiedInfrastructureEngine {
       } else if (service === 'domains') {
         const site = await hostingEngine.createSite({ ...ctx, requestId: undefined }, { name: name || 'App' });
         provisionedConfig = { managed: true, provider: providerId, siteId: site.id, siteSlug: site.slug, builtInUrl: site.builtInUrl, customDomains: true };
+        const hostnameInput = String(input.hostname || '').trim();
+        if (hostnameInput) {
+          const domain = await hostingEngine.addDomain({ ...ctx, requestId: undefined }, site.id, hostnameInput);
+          provisionedConfig.domain = domain;
+          provisionedEndpoint = domain.dnsRecord ? `https://${hostnameInput.toLowerCase().replace(/\\.$/, '')}` : site.builtInUrl;
+        }
         provisionedEndpoint = site.builtInUrl;
       } else if (service === 'deploy') {
         const site = await hostingEngine.createSite({ ...ctx, requestId: undefined }, { name: name || 'App' });
@@ -114,6 +128,7 @@ export class UnifiedInfrastructureEngine {
         provisionedEndpoint = site.builtInUrl;
       }
       const updated=(await postgres.query<any>(`UPDATE infrastructure_resources SET status='active',endpoint=$2,config=$3,updated_at=now() WHERE id=$1 RETURNING *`,[row.id,provisionedEndpoint,JSON.stringify(provisionedConfig)]))[0];
+      await this.recordUsage(ctx,service,'activation',1,'resource',{resourceId:row.id,providerId});
       await this.audit(ctx,'service.activate','resource',row.id,{service,plan:row.plan,provider_id:providerId,provisioned:true,config:provisionedConfig});
       return updated;
     } catch (error:any) {
@@ -136,7 +151,9 @@ export class UnifiedInfrastructureEngine {
   async addProvider(ctx:UnifiedInfrastructureContext,input:any){
     assertManage(ctx);
     const name=String(input.name||'').trim(); const type=String(input.type||'').trim();
+    const allowed=['docker','hetzner','aws','neon','s3','custom','logical'];
     if(!name||!type) throw new Error('Provider name and type are required.');
+    if(!allowed.includes(type)) throw new Error('Unsupported infrastructure provider type.');
     const row=(await postgres.query<any>('INSERT INTO infrastructure_providers(id,organization_id,name,type,mode,region,status,metadata) VALUES($1,$2,$3,$4,$5,$6,$7,$8) RETURNING id,name,type,mode,region,status,metadata,created_at',[id('prv'),ctx.organizationId,name,type,String(input.mode||'byok'),input.region||null,'connected',JSON.stringify(input.metadata||{})]))[0];
     await this.audit(ctx,'provider.add','provider',row.id,{type,mode:row.mode});
     return row;
@@ -170,6 +187,8 @@ export class UnifiedInfrastructureEngine {
       if(provider==='docker') { if(!image) throw new Error('Docker deployments require an image.'); result=await dockerAdapter.deploy({image,name,replicas,port:input.port?Number(input.port):undefined,hostPort:input.hostPort?Number(input.hostPort):undefined,env:input.env&&typeof input.env==='object'?input.env:{}}); }
       else if(provider!=='logical') throw new Error('Unsupported deployment provider.');
       const updated=(await postgres.query<any>('UPDATE infrastructure_deployments SET status=$2,logs=$3,finished_at=now() WHERE id=$1 RETURNING *',[row.id,'completed',JSON.stringify(result)]))[0];
+      await this.recordUsage(ctx,'deploy','deployment',1,'deployment',{deploymentId:row.id,provider});
+      if (provider === 'docker') await this.recordUsage(ctx,'containers','container_deployment',replicas,'container',{deploymentId:row.id});
       await this.audit(ctx,'deployment.completed','deployment',row.id,{provider,result}); return updated;
     } catch(error:any) {
       const updated=(await postgres.query<any>('UPDATE infrastructure_deployments SET status=$2,logs=$3,finished_at=now() WHERE id=$1 RETURNING *',[row.id,'failed',String(error?.message||error)]))[0];
