@@ -210,3 +210,7 @@ O processo de beta está documentado em `docs/BETA_POLICY.md`, `docs/RELEASE_PRO
 ### Hetzner container hosts
 
 The control plane can provision a real Hetzner Cloud server when the `containers` service is activated with a Hetzner provider. The provider uses the customer's encrypted BYOK API token. Server type, image, location and SSH key IDs are configurable through provider metadata; the resulting server ID and public addresses are stored as resource metadata without exposing the API token.
+
+Provisioning now sends cloud-init user data to bootstrap Docker automatically on the new Ubuntu worker. The resource records `workerBootstrap=cloud-init-docker` and `workerStatus=bootstrapping` until a future worker-agent enrollment flow is connected. The public API still does not mount or expose the Docker socket, and deployments are not yet routed to the remote Hetzner worker automatically.
+
+Deleting a Hetzner-backed container resource also attempts to delete the corresponding Cloud Server, preventing abandoned VPS resources from continuing to incur charges. Hetzner's API supports `POST /servers` with `user_data` for cloud-init and `DELETE /servers/{id}` for server removal. citeturn0search1turn0search0
