@@ -2,8 +2,8 @@ import { execFile } from 'node:child_process';
 import { promisify } from 'node:util';
 
 const execFileAsync=promisify(execFile);
-const forbiddenImageChars=new RegExp('[\\\\s;&|<>$\\"\\\\]');
-function safeImage(value:string):string{const image=value.trim();if(!image||image.length>512||forbiddenImageChars.test(image))throw new Error('Invalid container image reference.');if(!/^[A-Za-z0-9][A-Za-z0-9._\\/-]*(?::[A-Za-z0-9][A-Za-z0-9._-]*)?(?:@[A-Za-z0-9:+._-]+)?$/.test(image))throw new Error('Invalid container image reference.');return image;}
+const forbiddenImageChars=/[\\s;&|<>$"\\\\]/;
+function safeImage(value:string):string{const image=value.trim();if(!image||image.length>512||forbiddenImageChars.test(image))throw new Error('Invalid container image reference.');if(!/^[A-Za-z0-9][A-Za-z0-9._\/-]*(?::[A-Za-z0-9][A-Za-z0-9._-]*)?(?:@[A-Za-z0-9:+._-]+)?$/.test(image))throw new Error('Invalid container image reference.');return image;}
 function safeName(value:string):string{const name=value.trim();if(!/^[a-zA-Z0-9][a-zA-Z0-9_.-]{0,62}$/.test(name))throw new Error('Invalid container name.');return name;}
 async function docker(args:string[],timeout=120_000){if(process.env.BRISABASE_DOCKER_ENABLED!=='true')throw new Error('Docker adapter is disabled. Set BRISABASE_DOCKER_ENABLED=true on the infrastructure worker.');try{return await execFileAsync(process.env.DOCKER_BIN||'docker',args,{timeout,maxBuffer:1024*1024});}catch(error:any){const detail=String(error?.stderr||error?.message||'Docker command failed.').trim();throw new Error('Docker operation failed: '+detail.slice(0,1000));}}
 export type DockerDeploymentInput={image:string;name:string;replicas?:number;port?:number;hostPort?:number;env?:Record<string,string>};
