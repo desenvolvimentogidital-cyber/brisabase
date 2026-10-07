@@ -5,6 +5,8 @@ import { realStorageEngine } from '../storage/realStorageEngine';
 import { redisClient } from '../redis';
 import { dockerAdapter } from './dockerAdapter';
 import { hostingEngine } from '../platform/hostingEngine';
+import { config } from '../config';
+import { observability } from '../observability';
 
 export type UnifiedInfrastructureContext = {
   organizationId: string; projectId: string; environmentId: string; userId: string; role: string;
@@ -97,8 +99,11 @@ export class UnifiedInfrastructureEngine {
         provisionedConfig = { managed: true, isolation: 'bucket-per-environment', bucketId: bucket.id, bucketName, provider: providerId };
         provisionedEndpoint = process.env.STORAGE_PUBLIC_URL || null;
       } else if (service === 'backups') {
-        if (process.env.BACKUP_ENABLED !== 'true') throw new Error('Backups are disabled in this BrisaBase instance.');
+        if (!config.backup.enabled) throw new Error('Backups are disabled in this BrisaBase instance.');
         provisionedConfig = { managed: true, provider: providerId, engine: 'embedded-backup' };
+      } else if (service === 'logs' || service === 'monitoring') {
+        const health = await observability.checkHealth();
+        provisionedConfig = { managed: true, provider: providerId, health, retention: observability.retention.get() };
       } else if (service === 'domains') {
         const site = await hostingEngine.createSite({ ...ctx, requestId: undefined }, { name: name || 'App' });
         provisionedConfig = { managed: true, provider: providerId, siteId: site.id, siteSlug: site.slug, builtInUrl: site.builtInUrl, customDomains: true };
