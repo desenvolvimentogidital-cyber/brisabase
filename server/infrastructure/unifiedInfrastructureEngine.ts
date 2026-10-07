@@ -8,6 +8,16 @@ import { hostingEngine } from '../platform/hostingEngine';
 import { config } from '../config';
 import { observability } from '../observability';
 
+const PROVIDER_CAPABILITIES: Record<string,{services:string[];deployment:boolean;provisioning:boolean;requiresCredential:boolean}> = {
+  docker:{services:['containers','deploy'],deployment:true,provisioning:true,requiresCredential:false},
+  hetzner:{services:['containers','postgresql','redis','storage','deploy'],deployment:false,provisioning:false,requiresCredential:true},
+  aws:{services:['containers','postgresql','redis','storage','deploy','domains'],deployment:false,provisioning:false,requiresCredential:true},
+  neon:{services:['postgresql'],deployment:false,provisioning:false,requiresCredential:true},
+  s3:{services:['storage'],deployment:false,provisioning:false,requiresCredential:true},
+  custom:{services:['containers','postgresql','redis','storage','deploy'],deployment:false,provisioning:false,requiresCredential:true},
+  logical:{services:['postgresql','redis','storage','containers','deploy','domains','backups','logs','monitoring'],deployment:true,provisioning:false,requiresCredential:false},
+};
+
 export type UnifiedInfrastructureContext = {
   organizationId: string; projectId: string; environmentId: string; userId: string; role: string;
 };
@@ -49,7 +59,7 @@ function assertView(ctx:UnifiedInfrastructureContext){ if(!VIEW.has(ctx.role)) t
 function assertManage(ctx:UnifiedInfrastructureContext){ if(!MANAGE.has(ctx.role)) throw new Error('Infrastructure management requires admin, owner, or service role.'); }
 
 export class UnifiedInfrastructureEngine {
-  catalog(){ return SERVICES; }
+  catalog(){ return SERVICES.map(service => ({...service, providers:Object.entries(PROVIDER_CAPABILITIES).filter(([,cap])=>cap.services.includes(service.id)).map(([type])=>type)})); }
 
   async overview(ctx:UnifiedInfrastructureContext){
     assertView(ctx);
@@ -83,6 +93,16 @@ export class UnifiedInfrastructureEngine {
     const existing=await postgres.query<any>('SELECT * FROM infrastructure_resources WHERE project_id=$1 AND environment_id=$2 AND service=$3 AND status <> $4 LIMIT 1',[ctx.projectId,ctx.environmentId,service,'deleted']);
     if(existing[0]) return existing[0];
     const providerId=input.provider_id ? String(input.provider_id) : null;
+    if (providerId) {
+      const provider = (await postgres.query<any>('SELECT id,type,status FROM infrastructure_providers WHERE id=$1 AND organization_id=$2',[providerId,ctx.organizationId]))[0];
+      if (!provider) throw new Error('Infrastructure provider not found.');
+      const capability = PROVIDER_CAPABILITIES[provider.type];
+      if (!capability || !capability.services.includes(service)) throw new Error(`Provider '${provider.type}' does not support service '${service}'.`);
+      if (capability.requiresCredential) {
+        const credential = (await postgres.query<any>('SELECT id FROM infrastructure_credentials WHERE provider_id=$1 AND organization_id=$2 LIMIT 1',[providerId,ctx.organizationId]))[0];
+        if (!credential) throw new Error(`Provider '${provider.type}' requires a credential before it can be used.`);
+      }
+    }
     const region=String(input.region||'').trim()||null;
     const endpoint = service==='postgresql' ? process.env.DATABASE_URL||null : service==='redis' ? process.env.REDIS_URL||null : service==='storage' ? process.env.STORAGE_PUBLIC_URL||null : null;
     const status='provisioning';
@@ -177,13 +197,15 @@ export class UnifiedInfrastructureEngine {
   async createDeployment(ctx:UnifiedInfrastructureContext,input:any){
     assertManage(ctx);
     const provider=String(input.provider||'docker');
+    const capability=PROVIDER_CAPABILITIES[provider];
+    if(!capability || !capability.deployment) throw new Error(`Provider '${provider}' does not have an active deployment adapter.`);
     const image=input.image?String(input.image):'';
     const name=String(input.name||('bb-'+ctx.projectId+'-'+ctx.environmentId)).replace(/[^a-zA-Z0-9_.-]/g,'-').slice(0,63);
     const replicas=Math.max(1,Number(input.replicas||1));
     const row=(await postgres.query<any>('INSERT INTO infrastructure_deployments(id,organization_id,project_id,environment_id,provider_id,source,image,commit_sha,status,replicas,url,created_by,started_at) VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,now()) RETURNING *',[id('dep'),ctx.organizationId,ctx.projectId,ctx.environmentId,input.provider_id||null,String(input.source||'control-plane'),image||null,input.commit_sha||null,'deploying',replicas,input.url||null,ctx.userId]))[0];
     try {
       let result:any={provider,status:'accepted'};
-      if(provider==='docker') { if(!image) throw new Error('Docker deployments require an image.'); result=await dockerAdapter.deploy({image,name,replicas,port:input.port?Number(input.port):undefined,hostPort:input.hostPort?Number(input.hostPort):undefined,env:input.env&&typeof input.env==='object'?input.env:{}}); }
+      if(provider==='docker') { if(!image) throw new Error('Docker deployments require an image.'); if(process.env.BRISABASE_DOCKER_ENABLED!=='true') throw new Error('Docker deployment adapter is disabled. Enable it only on a dedicated infrastructure worker.'); result=await dockerAdapter.deploy({image,name,replicas,port:input.port?Number(input.port):undefined,hostPort:input.hostPort?Number(input.hostPort):undefined,env:input.env&&typeof input.env==='object'?input.env:{}}); }
       else if(provider!=='logical') throw new Error('Unsupported deployment provider.');
       const updated=(await postgres.query<any>('UPDATE infrastructure_deployments SET status=$2,logs=$3,finished_at=now() WHERE id=$1 RETURNING *',[row.id,'completed',JSON.stringify(result)]))[0];
       await this.recordUsage(ctx,'deploy','deployment',1,'deployment',{deploymentId:row.id,provider});
