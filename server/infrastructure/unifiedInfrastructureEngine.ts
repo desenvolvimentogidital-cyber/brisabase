@@ -12,7 +12,7 @@ const PROVIDER_CAPABILITIES: Record<string,{services:string[];deployment:boolean
   docker:{services:['containers','deploy'],deployment:true,provisioning:true,requiresCredential:false},
   hetzner:{services:['containers','postgresql','redis','storage','deploy'],deployment:false,provisioning:false,requiresCredential:true},
   aws:{services:['containers','postgresql','redis','storage','deploy','domains'],deployment:false,provisioning:false,requiresCredential:true},
-  neon:{services:['postgresql'],deployment:false,provisioning:false,requiresCredential:true},
+  neon:{services:['postgresql'],deployment:false,provisioning:true,requiresCredential:true},
   s3:{services:['storage'],deployment:false,provisioning:false,requiresCredential:true},
   custom:{services:['containers','postgresql','redis','storage','deploy'],deployment:false,provisioning:false,requiresCredential:true},
   logical:{services:['postgresql','redis','storage','containers','deploy','domains','backups','logs','monitoring'],deployment:true,provisioning:false,requiresCredential:false},
