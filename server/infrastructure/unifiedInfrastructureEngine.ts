@@ -119,9 +119,8 @@ export class UnifiedInfrastructureEngine {
         if (hostnameInput) {
           const domain = await hostingEngine.addDomain({ ...ctx, requestId: undefined }, site.id, hostnameInput);
           provisionedConfig.domain = domain;
-          provisionedEndpoint = domain.dnsRecord ? `https://${hostnameInput.toLowerCase().replace(/\\.$/, '')}` : site.builtInUrl;
+          provisionedEndpoint = domain?.hostname ? `https://${domain.hostname}` : site.builtInUrl;
         }
-        provisionedEndpoint = site.builtInUrl;
       } else if (service === 'deploy') {
         const site = await hostingEngine.createSite({ ...ctx, requestId: undefined }, { name: name || 'App' });
         provisionedConfig = { managed: true, provider: providerId, siteId: site.id, siteSlug: site.slug, builtInUrl: site.builtInUrl };
