@@ -67,8 +67,9 @@ async function provisionHetznerServer(input:{apiToken:string;name:string;locatio
   if(!input.apiToken) throw new Error('Hetzner API credential is required.');
   const name=input.name.replace(/[^a-zA-Z0-9._-]/g,'-').slice(0,63)||'brisabase-worker';
   const location=input.location||'fsn1'; const serverType=input.serverType||'cx23'; const image=input.image||'ubuntu-24.04';
+  if(!input.sshKeyIds?.length) throw new Error('Hetzner provisioning requires at least one SSH key ID.');
   const payload:any={name,server_type:serverType,image,location,labels:input.labels||{managed_by:'brisabase',product:'control-plane'}};
-  if(input.sshKeyIds?.length) payload.ssh_keys=input.sshKeyIds.map(String);
+  payload.ssh_keys=input.sshKeyIds.map(String);
   const result=await hetznerRequest('/servers',input.apiToken,{method:'POST',body:JSON.stringify(payload)});
   const server=result?.server;
   if(!server?.id) throw new Error('Hetzner server was created but no server id was returned.');
