@@ -1,5 +1,6 @@
 import crypto from 'node:crypto';
 import { postgres } from '../db/postgres';
+import { dockerAdapter } from './dockerAdapter';
 
 export type UnifiedInfrastructureContext = {
   organizationId: string; projectId: string; environmentId: string; userId: string; role: string;
@@ -117,9 +118,21 @@ export class UnifiedInfrastructureEngine {
 
   async createDeployment(ctx:UnifiedInfrastructureContext,input:any){
     assertManage(ctx);
-    const row=(await postgres.query<any>('INSERT INTO infrastructure_deployments(id,organization_id,project_id,environment_id,provider_id,source,image,commit_sha,status,replicas,url,created_by,started_at) VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,now()) RETURNING *',[id('dep'),ctx.organizationId,ctx.projectId,ctx.environmentId,input.provider_id||null,String(input.source||'control-plane'),input.image||null,input.commit_sha||null,'queued',Math.max(1,Number(input.replicas||1)),input.url||null,ctx.userId]))[0];
-    await this.audit(ctx,'deployment.create','deployment',row.id,{image:row.image,commit_sha:row.commit_sha,replicas:row.replicas});
-    return row;
+    const provider=String(input.provider||'docker');
+    const image=input.image?String(input.image):'';
+    const name=String(input.name||('bb-'+ctx.projectId+'-'+ctx.environmentId)).replace(/[^a-zA-Z0-9_.-]/g,'-').slice(0,63);
+    const replicas=Math.max(1,Number(input.replicas||1));
+    const row=(await postgres.query<any>('INSERT INTO infrastructure_deployments(id,organization_id,project_id,environment_id,provider_id,source,image,commit_sha,status,replicas,url,created_by,started_at) VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,now()) RETURNING *',[id('dep'),ctx.organizationId,ctx.projectId,ctx.environmentId,input.provider_id||null,String(input.source||'control-plane'),image||null,input.commit_sha||null,'deploying',replicas,input.url||null,ctx.userId]))[0];
+    try {
+      let result:any={provider,status:'accepted'};
+      if(provider==='docker') { if(!image) throw new Error('Docker deployments require an image.'); result=await dockerAdapter.deploy({image,name,replicas,port:input.port?Number(input.port):undefined,hostPort:input.hostPort?Number(input.hostPort):undefined,env:input.env&&typeof input.env==='object'?input.env:{}}); }
+      else if(provider!=='logical') throw new Error('Unsupported deployment provider.');
+      const updated=(await postgres.query<any>('UPDATE infrastructure_deployments SET status=$2,logs=$3,finished_at=now() WHERE id=$1 RETURNING *',[row.id,'completed',JSON.stringify(result)]))[0];
+      await this.audit(ctx,'deployment.completed','deployment',row.id,{provider,result}); return updated;
+    } catch(error:any) {
+      const updated=(await postgres.query<any>('UPDATE infrastructure_deployments SET status=$2,logs=$3,finished_at=now() WHERE id=$1 RETURNING *',[row.id,'failed',String(error?.message||error)]))[0];
+      await this.audit(ctx,'deployment.failed','deployment',row.id,{provider,error:String(error?.message||error)}); return updated;
+    }
   }
 
   async usage(ctx:UnifiedInfrastructureContext){
