@@ -137,7 +137,7 @@ export class UnifiedInfrastructureEngine {
     if(!def) throw new Error('Unsupported infrastructure service.');
     const name=String(input.name||def.name).trim();
     const existing=await postgres.query<any>('SELECT * FROM infrastructure_resources WHERE project_id=$1 AND environment_id=$2 AND service=$3 AND status <> $4 LIMIT 1',[ctx.projectId,ctx.environmentId,service,'deleted']);
-    if(existing[0]) return existing[0];
+    if(existing[0]) return publicResource(existing[0]);
     const providerId=input.provider_id ? String(input.provider_id) : null;
     let providerRecord:any=null;
     let providerCredentialSecret:string|null=null;
