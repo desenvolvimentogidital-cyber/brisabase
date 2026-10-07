@@ -1,5 +1,8 @@
 import crypto from 'node:crypto';
 import { postgres } from '../db/postgres';
+import { realProjectDatabase } from '../db/realProjectDatabase';
+import { realStorageEngine } from '../storage/realStorageEngine';
+import { redisClient } from '../redis';
 import { dockerAdapter } from './dockerAdapter';
 
 export type UnifiedInfrastructureContext = {
@@ -71,14 +74,41 @@ export class UnifiedInfrastructureEngine {
     const providerId=input.provider_id ? String(input.provider_id) : null;
     const region=String(input.region||'').trim()||null;
     const endpoint = service==='postgresql' ? process.env.DATABASE_URL||null : service==='redis' ? process.env.REDIS_URL||null : service==='storage' ? process.env.STORAGE_PUBLIC_URL||null : null;
-    const status=['postgresql','redis','storage','backups','logs','monitoring','webhooks'].includes(service) ? 'active' : 'provisioning';
+    const status='provisioning';
     const row=(await postgres.query<any>(
       `INSERT INTO infrastructure_resources(id,organization_id,project_id,environment_id,service,name,provider_id,status,plan,region,endpoint,public_url,connection,config)
        VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14) RETURNING *`,
       [id('res'),ctx.organizationId,ctx.projectId,ctx.environmentId,service,name,providerId,status,String(input.plan||'standard'),region,endpoint,service==='storage'?process.env.STORAGE_PUBLIC_URL||null:null,JSON.stringify({managed: true}),JSON.stringify(input.config||{})]
     ))[0];
-    await this.audit(ctx,'service.activate','resource',row.id,{service,plan:row.plan,provider_id:providerId});
-    return row;
+    try {
+      let provisionedConfig:any = { managed: true, provider: providerId };
+      let provisionedEndpoint = endpoint;
+      if (service === 'postgresql') {
+        const schema = await realProjectDatabase.getSchemaName(ctx);
+        provisionedConfig = { managed: true, isolation: 'schema-per-environment', schema, provider: providerId };
+      } else if (service === 'redis') {
+        const health = await redisClient.healthCheck();
+        if (health.status !== 'ok') throw new Error('Redis is unavailable for this environment.');
+        provisionedConfig = { managed: true, isolation: 'instance-prefix', prefix: process.env.BRISABASE_REDIS_PREFIX || 'brisabase', provider: providerId };
+      } else if (service === 'storage') {
+        const bucketName = String(input.bucket_name || `bb-${ctx.projectId}-${ctx.environmentId}`).toLowerCase().replace(/[^a-z0-9.-]/g,'-').slice(0,63);
+        const bucket = await realStorageEngine.createBucket({ ...ctx, role: ctx.role }, { name: bucketName, isPublic: Boolean(input.is_public), versioningEnabled: Boolean(input.versioning_enabled) });
+        provisionedConfig = { managed: true, isolation: 'bucket-per-environment', bucketId: bucket.id, bucketName, provider: providerId };
+        provisionedEndpoint = process.env.STORAGE_PUBLIC_URL || null;
+      } else if (service === 'backups') {
+        if (process.env.BACKUP_ENABLED !== 'true') throw new Error('Backups are disabled in this BrisaBase instance.');
+        provisionedConfig = { managed: true, provider: providerId, engine: 'embedded-backup' };
+      } else if (service === 'domains') {
+        provisionedConfig = { managed: true, provider: providerId, requires: ['hosting','dns-verification'] };
+      }
+      const updated=(await postgres.query<any>(`UPDATE infrastructure_resources SET status='active',endpoint=$2,config=$3,updated_at=now() WHERE id=$1 RETURNING *`,[row.id,provisionedEndpoint,JSON.stringify(provisionedConfig)]))[0];
+      await this.audit(ctx,'service.activate','resource',row.id,{service,plan:row.plan,provider_id:providerId,provisioned:true,config:provisionedConfig});
+      return updated;
+    } catch (error:any) {
+      const failed=(await postgres.query<any>(`UPDATE infrastructure_resources SET status='failed',config=$2,updated_at=now() WHERE id=$1 RETURNING *`,[row.id,JSON.stringify({managed:true,error:String(error?.message||error)})]))[0];
+      await this.audit(ctx,'service.activate.failed','resource',row.id,{service,error:String(error?.message||error)});
+      throw error;
+    }
   }
 
   async deactivate(ctx:UnifiedInfrastructureContext,resourceId:string){
