@@ -206,3 +206,7 @@ npm run release:validate:docker
 Antes de lançamento público, revise `docs/legal/TERMS_TEMPLATE.md`, `docs/legal/PRIVACY_TEMPLATE.md` e complete `docs/GO_LIVE_CHECKLIST.md`.
 
 O processo de beta está documentado em `docs/BETA_POLICY.md`, `docs/RELEASE_PROCESS.md`, `docs/REPOSITORY_GOVERNANCE.md` e `SECURITY.md`. O canal de distribuição do candidato é o artefato imutável produzido pelo **BrisaBase Production Gate**; não trate a branch `main` ou um build local como release.
+
+### Hetzner container hosts
+
+The control plane can provision a real Hetzner Cloud server when the `containers` service is activated with a Hetzner provider. The provider uses the customer's encrypted BYOK API token. Server type, image, location and SSH key IDs are configurable through provider metadata; the resulting server ID and public addresses are stored as resource metadata without exposing the API token.
