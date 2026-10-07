@@ -49,6 +49,51 @@ function encrypt(value:string){
   const data=Buffer.concat([cipher.update(value,'utf8'),cipher.final()]); const tag=cipher.getAuthTag();
   return [iv.toString('base64url'),tag.toString('base64url'),data.toString('base64url')].join('.');
 }
+function publicResource(row:any){
+  if(!row) return row;
+  const {connection_secret_ciphertext: _secret, ...safe}=row;
+  return safe;
+}
+
+async function neonRequest(path:string, apiKey:string, init:RequestInit = {}):Promise<any>{
+  const response=await fetch('https://console.neon.tech/api/v2'+path, {
+    ...init,
+    headers:{accept:'application/json',authorization:'Bearer '+apiKey,...(init.body?{'content-type':'application/json'}:{}),...(init.headers||{})},
+  });
+  const bodyText=await response.text();
+  let body:any=null;
+  try{ body=bodyText?JSON.parse(bodyText):null; }catch{ body={message:bodyText.slice(0,500)}; }
+  if(!response.ok) throw new Error('Neon API '+response.status+': '+String(body?.message||body?.error||response.statusText));
+  return body;
+}
+
+function neonConnection(payload:any):string|null{
+  return payload?.connection_uris?.[0]?.connection_uri || payload?.connection_uri || null;
+}
+
+async function provisionNeonPostgres(input:{apiKey:string;name:string;region?:string|null;projectId?:string|null;orgId?:string|null;branchName:string}){
+  if(!input.apiKey) throw new Error('Neon API credential is required.');
+  const safeName=input.name.replace(/[^a-zA-Z0-9._-]/g,'-').slice(0,80)||'brisabase';
+  let projectId=input.projectId||null;
+  let projectPayload:any=null;
+  if(!projectId){
+    if(!input.orgId) throw new Error('Neon provider requires metadata.org_id or metadata.project_id.');
+    projectPayload=await neonRequest('/projects',input.apiKey,{method:'POST',body:JSON.stringify({project:{name:safeName,org_id:input.orgId,region_id:input.region||'aws-us-east-2',pg_version:16}})});
+    projectId=projectPayload?.project?.id||projectPayload?.id||null;
+    if(!projectId) throw new Error('Neon project was created but no project id was returned.');
+  }
+  const branchName=input.branchName.replace(/[^a-zA-Z0-9._/-]/g,'-').slice(0,100);
+  const branchPayload=await neonRequest('/projects/'+encodeURIComponent(projectId)+'/branches',input.apiKey,{method:'POST',body:JSON.stringify({endpoints:[{type:'read_write'}],branch:{name:branchName}})});
+  const branchId=branchPayload?.branch?.id||branchPayload?.id||null;
+  let connectionString=neonConnection(branchPayload)||neonConnection(projectPayload);
+  if(!connectionString&&branchId){
+    const uriPayload=await neonRequest('/projects/'+encodeURIComponent(projectId)+'/connection_uri?database_name=neondb&role_name=neondb_owner&branch_id='+encodeURIComponent(branchId),input.apiKey);
+    connectionString=neonConnection(uriPayload);
+  }
+  if(!connectionString) throw new Error('Neon provisioning completed but no connection string was returned.');
+  return {projectId,branchId,connectionString,region:input.region||projectPayload?.project?.region_id||null};
+}
+
 function decrypt(value:string){
   const [ivB,tagB,dataB]=String(value).split('.');
   const decipher=crypto.createDecipheriv('aes-256-gcm',keyMaterial(),Buffer.from(ivB,'base64url'));
@@ -73,7 +118,8 @@ export class UnifiedInfrastructureEngine {
 
   async resources(ctx:UnifiedInfrastructureContext){
     assertView(ctx);
-    return postgres.query<any>('SELECT r.*,p.name provider_name FROM infrastructure_resources r LEFT JOIN infrastructure_providers p ON p.id=r.provider_id WHERE r.project_id=$1 AND (r.environment_id=$2 OR r.environment_id IS NULL) ORDER BY r.created_at DESC',[ctx.projectId,ctx.environmentId]);
+    const rows=await postgres.query<any>('SELECT r.id,r.organization_id,r.project_id,r.environment_id,r.service,r.name,r.provider_id,r.status,r.plan,r.region,r.endpoint,r.public_url,r.connection,r.config,r.created_at,r.updated_at,p.name provider_name FROM infrastructure_resources r LEFT JOIN infrastructure_providers p ON p.id=r.provider_id WHERE r.project_id=$1 AND (r.environment_id=$2 OR r.environment_id IS NULL) ORDER BY r.created_at DESC',[ctx.projectId,ctx.environmentId]);
+    return rows.map(publicResource);
   }
 
   private async recordUsage(ctx:UnifiedInfrastructureContext, service:string, metric:string, quantity:number, unit:string, metadata:any = {}): Promise<void> {
@@ -93,14 +139,18 @@ export class UnifiedInfrastructureEngine {
     const existing=await postgres.query<any>('SELECT * FROM infrastructure_resources WHERE project_id=$1 AND environment_id=$2 AND service=$3 AND status <> $4 LIMIT 1',[ctx.projectId,ctx.environmentId,service,'deleted']);
     if(existing[0]) return existing[0];
     const providerId=input.provider_id ? String(input.provider_id) : null;
+    let providerRecord:any=null;
+    let providerCredentialSecret:string|null=null;
     if (providerId) {
-      const provider = (await postgres.query<any>('SELECT id,type,status FROM infrastructure_providers WHERE id=$1 AND organization_id=$2',[providerId,ctx.organizationId]))[0];
+      const provider = (await postgres.query<any>('SELECT id,type,status,region,metadata FROM infrastructure_providers WHERE id=$1 AND organization_id=$2',[providerId,ctx.organizationId]))[0];
       if (!provider) throw new Error('Infrastructure provider not found.');
+      providerRecord=provider;
       const capability = PROVIDER_CAPABILITIES[provider.type];
       if (!capability || !capability.services.includes(service)) throw new Error(`Provider '${provider.type}' does not support service '${service}'.`);
       if (capability.requiresCredential) {
-        const credential = (await postgres.query<any>('SELECT id FROM infrastructure_credentials WHERE provider_id=$1 AND organization_id=$2 LIMIT 1',[providerId,ctx.organizationId]))[0];
+        const credential = (await postgres.query<any>('SELECT id FROM infrastructure_credentials WHERE provider_id=$1 AND organization_id=$2 ORDER BY created_at DESC LIMIT 1',[providerId,ctx.organizationId]))[0];
         if (!credential) throw new Error(`Provider '${provider.type}' requires a credential before it can be used.`);
+        providerCredentialSecret=await this.getCredentialSecret(ctx,credential.id);
       }
     }
     const region=String(input.region||'').trim()||null;
@@ -115,6 +165,16 @@ export class UnifiedInfrastructureEngine {
       let provisionedConfig:any = { managed: true, provider: providerId };
       let provisionedEndpoint = endpoint;
       if (service === 'postgresql') {
+        if (providerRecord?.type === 'neon') {
+          const metadata=providerRecord.metadata||{};
+          const neon=await provisionNeonPostgres({apiKey:providerCredentialSecret||'',name:name+'-'+ctx.environmentId,region:region||providerRecord.region||null,projectId:metadata.project_id||null,orgId:metadata.org_id||null,branchName:'brisabase/'+ctx.projectId+'/'+ctx.environmentId});
+          provisionedEndpoint=neon.connectionString.replace(/:\/\/([^:@]+):([^@]+)@/,'://$1:***@');
+          provisionedConfig={managed:true,isolation:'neon-branch',provider:providerId,projectId:neon.projectId,branchId:neon.branchId,region:neon.region,external:true};
+          const updatedRaw=(await postgres.query<any>('UPDATE infrastructure_resources SET status=\'active\',endpoint=$2,connection=$3,connection_secret_ciphertext=$4,config=$5,updated_at=now() WHERE id=$1 RETURNING *',[row.id,provisionedEndpoint,JSON.stringify({provider:'neon',external:true}),encrypt(neon.connectionString),JSON.stringify(provisionedConfig)]))[0];
+          await this.recordUsage(ctx,service,'activation',1,'resource',{resourceId:row.id,providerId,external:true});
+          await this.audit(ctx,'service.activate','resource',row.id,{service,plan:row.plan,provider_id:providerId,provisioned:true,external:true,projectId:neon.projectId,branchId:neon.branchId});
+          return publicResource(updatedRaw);
+        }
         const schema = await realProjectDatabase.getSchemaName(ctx);
         provisionedConfig = { managed: true, isolation: 'schema-per-environment', schema, provider: providerId };
       } else if (service === 'redis') {
@@ -149,7 +209,7 @@ export class UnifiedInfrastructureEngine {
       const updated=(await postgres.query<any>(`UPDATE infrastructure_resources SET status='active',endpoint=$2,config=$3,updated_at=now() WHERE id=$1 RETURNING *`,[row.id,provisionedEndpoint,JSON.stringify(provisionedConfig)]))[0];
       await this.recordUsage(ctx,service,'activation',1,'resource',{resourceId:row.id,providerId});
       await this.audit(ctx,'service.activate','resource',row.id,{service,plan:row.plan,provider_id:providerId,provisioned:true,config:provisionedConfig});
-      return updated;
+      return publicResource(updated);
     } catch (error:any) {
       const failed=(await postgres.query<any>(`UPDATE infrastructure_resources SET status='failed',config=$2,updated_at=now() WHERE id=$1 RETURNING *`,[row.id,JSON.stringify({managed:true,error:String(error?.message||error)})]))[0];
       await this.audit(ctx,'service.activate.failed','resource',row.id,{service,error:String(error?.message||error)});
@@ -162,7 +222,7 @@ export class UnifiedInfrastructureEngine {
     const rows=await postgres.query<any>('UPDATE infrastructure_resources SET status=$4,updated_at=now() WHERE id=$1 AND project_id=$2 AND environment_id=$3 RETURNING *',[resourceId,ctx.projectId,ctx.environmentId,'deleted']);
     if(!rows[0]) throw new Error('Infrastructure resource not found.');
     await this.audit(ctx,'service.deactivate','resource',resourceId,{});
-    return rows[0];
+    return publicResource(rows[0]);
   }
 
   async providers(ctx:UnifiedInfrastructureContext){ assertView(ctx); return postgres.query<any>('SELECT id,name,type,mode,region,status,metadata,created_at,updated_at FROM infrastructure_providers WHERE organization_id=$1 ORDER BY created_at DESC',[ctx.organizationId]); }
