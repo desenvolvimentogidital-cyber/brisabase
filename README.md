@@ -6,6 +6,16 @@ BrisaBase é um BaaS baseado em PostgreSQL com console visual e runtime real par
 
 A camada `/platform` centraliza recursos de infraestrutura por projeto e ambiente. Ela suporta catálogo de serviços, provedores/BYOK, credenciais cifradas, deployments, medição de uso e auditoria. O primeiro executor real é o adapter Docker, protegido por `BRISABASE_DOCKER_ENABLED=false` por padrão. Em produção, habilite-o somente em um worker dedicado com permissões mínimas sobre o Docker Engine; a API pública não deve receber o socket Docker diretamente.
 
+### Neon PostgreSQL provisioning
+
+The control plane now has a real Neon adapter for PostgreSQL. When a Neon provider is connected with a BYOK API key, activation can create a Neon project (when `metadata.org_id` is supplied) or reuse `metadata.project_id`, then create an isolated read/write branch for the BrisaBase project environment. The returned connection string is encrypted at rest and is never returned by the resource API.
+
+For a Neon provider, configure:
+- `metadata.project_id` to reuse an existing Neon project, or
+- `metadata.org_id` to let BrisaBase create the Neon project, plus an optional region such as `aws-us-east-2`.
+
+The Neon API key is stored as an encrypted BYOK credential. The control plane does not print or expose that secret in provider/resource listings.
+
 ## Advanced Platform — Fase 7
 
 A base **1.0.0** fecha as oito fases de implementação; **1.0.1-beta.1** prepara a certificação e distribuição do beta sem mover a tag anterior. Billing comercial é provider-aware, Enterprise adiciona SSO/SCIM/RBAC/SIEM/políticas e IaC oferece manifests com checksum e drift detection. Recursos externos só são considerados ativos quando seus providers e credenciais reais estão configurados.
