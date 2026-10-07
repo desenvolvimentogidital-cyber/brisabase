@@ -2,6 +2,10 @@
 
 BrisaBase é um BaaS baseado em PostgreSQL com console visual e runtime real para Database, Authentication, Storage, Realtime, Webhooks, Functions, REST, GraphQL, Backup, Hosting, infraestrutura operacional, Remote Config, Feature Flags, Experiments, Product Analytics, App Quality, Search/Vector/RAG, AI Gateway, Messaging multicanal, Billing, Enterprise e Infrastructure as Code.
 
+## Unified Infrastructure Control Plane
+
+A camada `/platform` centraliza recursos de infraestrutura por projeto e ambiente. Ela suporta catálogo de serviços, provedores/BYOK, credenciais cifradas, deployments, medição de uso e auditoria. O primeiro executor real é o adapter Docker, protegido por `BRISABASE_DOCKER_ENABLED=false` por padrão. Em produção, habilite-o somente em um worker dedicado com permissões mínimas sobre o Docker Engine; a API pública não deve receber o socket Docker diretamente.
+
 ## Advanced Platform — Fase 7
 
 A base **1.0.0** fecha as oito fases de implementação; **1.0.1-beta.1** prepara a certificação e distribuição do beta sem mover a tag anterior. Billing comercial é provider-aware, Enterprise adiciona SSO/SCIM/RBAC/SIEM/políticas e IaC oferece manifests com checksum e drift detection. Recursos externos só são considerados ativos quando seus providers e credenciais reais estão configurados.
