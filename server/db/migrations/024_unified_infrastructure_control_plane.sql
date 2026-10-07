@@ -40,6 +40,7 @@ CREATE TABLE IF NOT EXISTS infrastructure_resources (
   endpoint TEXT,
   public_url TEXT,
   connection JSONB NOT NULL DEFAULT '{}'::jsonb,
+  connection_secret_ciphertext TEXT,
   config JSONB NOT NULL DEFAULT '{}'::jsonb,
   created_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
   updated_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP
