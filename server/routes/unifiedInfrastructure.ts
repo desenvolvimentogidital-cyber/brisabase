@@ -15,6 +15,7 @@ unifiedInfrastructureRouter.get('/api/control-plane/overview',async(req,res)=>{t
 unifiedInfrastructureRouter.get('/api/control-plane/resources',async(req,res)=>{try{res.json(await unifiedInfrastructureEngine.resources(ctx(req as AuthenticatedRequest)));}catch(e){fail(res,e);}});
 unifiedInfrastructureRouter.post('/api/control-plane/resources',async(req,res)=>{try{res.status(201).json(await unifiedInfrastructureEngine.activate(ctx(req as AuthenticatedRequest),req.body||{}));}catch(e){fail(res,e);}});
 unifiedInfrastructureRouter.delete('/api/control-plane/resources/:id',async(req,res)=>{try{res.json(await unifiedInfrastructureEngine.deactivate(ctx(req as AuthenticatedRequest),req.params.id));}catch(e){fail(res,e);}});
+unifiedInfrastructureRouter.get('/api/control-plane/workers',async(req,res)=>{try{res.json(await unifiedInfrastructureEngine.workers(ctx(req as AuthenticatedRequest)));}catch(e){fail(res,e);}});
 unifiedInfrastructureRouter.get('/api/control-plane/providers',async(req,res)=>{try{res.json(await unifiedInfrastructureEngine.providers(ctx(req as AuthenticatedRequest)));}catch(e){fail(res,e);}});
 unifiedInfrastructureRouter.post('/api/control-plane/providers',async(req,res)=>{try{res.status(201).json(await unifiedInfrastructureEngine.addProvider(ctx(req as AuthenticatedRequest),req.body||{}));}catch(e){fail(res,e);}});
 unifiedInfrastructureRouter.get('/api/control-plane/credentials',async(req,res)=>{try{res.json(await unifiedInfrastructureEngine.credentials(ctx(req as AuthenticatedRequest)));}catch(e){fail(res,e);}});
