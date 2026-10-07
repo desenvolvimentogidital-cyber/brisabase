@@ -95,3 +95,22 @@ CREATE TABLE IF NOT EXISTS infrastructure_audit_events (
   created_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP
 );
 CREATE INDEX IF NOT EXISTS idx_infra_audit_org_time ON infrastructure_audit_events(organization_id, created_at DESC);
+
+
+CREATE TABLE IF NOT EXISTS infrastructure_workers (
+  id VARCHAR(64) PRIMARY KEY,
+  organization_id VARCHAR(64) NOT NULL REFERENCES organizations(id) ON DELETE CASCADE,
+  project_id VARCHAR(64) NOT NULL REFERENCES projects(id) ON DELETE CASCADE,
+  environment_id VARCHAR(64) REFERENCES project_environments(id) ON DELETE CASCADE,
+  resource_id VARCHAR(64) REFERENCES infrastructure_resources(id) ON DELETE CASCADE,
+  name VARCHAR(255) NOT NULL,
+  status VARCHAR(32) NOT NULL DEFAULT 'pending',
+  endpoint TEXT,
+  enrollment_hash TEXT,
+  last_seen_at TIMESTAMPTZ,
+  metadata JSONB NOT NULL DEFAULT '{}'::jsonb,
+  created_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  updated_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP
+);
+CREATE INDEX IF NOT EXISTS idx_infra_workers_project ON infrastructure_workers(project_id, environment_id);
+CREATE INDEX IF NOT EXISTS idx_infra_workers_status ON infrastructure_workers(status);
