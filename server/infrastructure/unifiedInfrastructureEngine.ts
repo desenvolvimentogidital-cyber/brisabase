@@ -64,7 +64,7 @@ async function hetznerRequest(path:string,apiToken:string,init:RequestInit = {})
 }
 
 function hetznerWorkerUserData():string {
-  return '#cloud-config\npackage_update: true\npackages:\n  - ca-certificates\n  - curl\n  - jq\nruncmd:\n  - [ bash, -lc, "install -d -m 0750 /etc/brisabase-worker" ]\n  - [ bash, -lc, "curl -fsSL https://get.docker.com | sh" ]\n  - [ bash, -lc, "systemctl enable --now docker" ]\n  - [ bash, -lc, "cat > /etc/brisabase-worker/bootstrap.json <<\\'JSON\\'\\n{\\"managed_by\\":\\"brisabase\\",\\"role\\":\\"container-worker\\",\\"docker\\":\\"ready\\"}\\nJSON\\nchmod 0640 /etc/brisabase-worker/bootstrap.json" ]\n';
+  return '#cloud-config\npackage_update: true\npackages:\n  - ca-certificates\n  - curl\n  - jq\nruncmd:\n  - [ bash, -lc, "install -d -m 0750 /etc/brisabase-worker" ]\n  - [ bash, -lc, "curl -fsSL https://get.docker.com | sh" ]\n  - [ bash, -lc, "systemctl enable --now docker" ]\n  - [ bash, -lc, "printf \'%s\\n\' \'{\\"managed_by\\":\\"brisabase\\",\\"role\\":\\"container-worker\\",\\"docker\\":\\"ready\\"}\' > /etc/brisabase-worker/bootstrap.json && chmod 0640 /etc/brisabase-worker/bootstrap.json" ]\n';
 }
 
 async function provisionHetznerServer(input:{apiToken:string;name:string;location?:string|null;serverType?:string|null;image?:string|null;sshKeyIds?:Array<string|number>;labels?:Record<string,string>}):Promise<{serverId:number;name:string;ipv4:string|null;ipv6:string|null;location:string|null;serverType:string}> {
