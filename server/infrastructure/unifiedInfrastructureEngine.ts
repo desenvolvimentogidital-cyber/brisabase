@@ -10,7 +10,7 @@ import { observability } from '../observability';
 
 const PROVIDER_CAPABILITIES: Record<string,{services:string[];deployment:boolean;provisioning:boolean;requiresCredential:boolean}> = {
   docker:{services:['containers','deploy'],deployment:true,provisioning:true,requiresCredential:false},
-  hetzner:{services:['containers','postgresql','redis','storage','deploy'],deployment:false,provisioning:false,requiresCredential:true},
+  hetzner:{services:['containers'],deployment:false,provisioning:true,requiresCredential:true},
   aws:{services:['containers','postgresql','redis','storage','deploy','domains'],deployment:false,provisioning:false,requiresCredential:true},
   neon:{services:['postgresql'],deployment:false,provisioning:true,requiresCredential:true},
   s3:{services:['storage'],deployment:false,provisioning:false,requiresCredential:true},
@@ -53,6 +53,26 @@ function publicResource(row:any){
   if(!row) return row;
   const {connection_secret_ciphertext: _secret, ...safe}=row;
   return safe;
+}
+
+async function hetznerRequest(path:string,apiToken:string,init:RequestInit = {}):Promise<any>{
+  const response=await fetch('https://api.hetzner.cloud/v1'+path,{...init,headers:{accept:'application/json',authorization:'Bearer '+apiToken,...(init.body?{'content-type':'application/json'}:{}),...(init.headers||{})}});
+  const bodyText=await response.text(); let body:any=null;
+  try{body=bodyText?JSON.parse(bodyText):null;}catch{body={message:bodyText.slice(0,500)};}
+  if(!response.ok) throw new Error('Hetzner API '+response.status+': '+String(body?.error?.message||body?.message||response.statusText));
+  return body;
+}
+
+async function provisionHetznerServer(input:{apiToken:string;name:string;location?:string|null;serverType?:string|null;image?:string|null;sshKeyIds?:Array<string|number>;labels?:Record<string,string>}):Promise<{serverId:number;name:string;ipv4:string|null;ipv6:string|null;location:string|null;serverType:string}> {
+  if(!input.apiToken) throw new Error('Hetzner API credential is required.');
+  const name=input.name.replace(/[^a-zA-Z0-9._-]/g,'-').slice(0,63)||'brisabase-worker';
+  const location=input.location||'fsn1'; const serverType=input.serverType||'cx23'; const image=input.image||'ubuntu-24.04';
+  const payload:any={name,server_type:serverType,image,location,labels:input.labels||{managed_by:'brisabase',product:'control-plane'}};
+  if(input.sshKeyIds?.length) payload.ssh_keys=input.sshKeyIds.map(String);
+  const result=await hetznerRequest('/servers',input.apiToken,{method:'POST',body:JSON.stringify(payload)});
+  const server=result?.server;
+  if(!server?.id) throw new Error('Hetzner server was created but no server id was returned.');
+  return {serverId:Number(server.id),name:server.name,ipv4:server.public_net?.ipv4?.ip||null,ipv6:server.public_net?.ipv6?.ip||null,location:server.datacenter?.location?.name||location,serverType:server.server_type?.name||serverType};
 }
 
 async function neonRequest(path:string, apiKey:string, init:RequestInit = {}):Promise<any>{
@@ -177,6 +197,21 @@ export class UnifiedInfrastructureEngine {
         }
         const schema = await realProjectDatabase.getSchemaName(ctx);
         provisionedConfig = { managed: true, isolation: 'schema-per-environment', schema, provider: providerId };
+      } else if (service === 'containers') {
+        if (providerRecord?.type === 'hetzner') {
+          const metadata=providerRecord.metadata||{};
+          const server=await provisionHetznerServer({
+            apiToken:providerCredentialSecret||'', name:name+'-'+ctx.environmentId,
+            location:region||providerRecord.region||metadata.location||null,
+            serverType:metadata.server_type||'cx23', image:metadata.image||'ubuntu-24.04',
+            sshKeyIds:Array.isArray(metadata.ssh_key_ids)?metadata.ssh_key_ids:[],
+            labels:{managed_by:'brisabase',organization_id:ctx.organizationId,project_id:ctx.projectId,environment_id:ctx.environmentId,service:'containers'},
+          });
+          provisionedEndpoint=server.ipv4?'http://'+server.ipv4:null;
+          provisionedConfig={managed:true,isolation:'dedicated-vps',provider:providerId,external:true,serverId:server.serverId,serverName:server.name,ipv4:server.ipv4,ipv6:server.ipv6,location:server.location,serverType:server.serverType};
+        } else {
+          provisionedConfig={managed:true,provider:providerId,isolation:'container-runtime'};
+        }
       } else if (service === 'redis') {
         const health = await redisClient.healthCheck();
         if (health.status !== 'ok') throw new Error('Redis is unavailable for this environment.');
