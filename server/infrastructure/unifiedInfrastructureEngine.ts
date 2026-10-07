@@ -219,6 +219,8 @@ export class UnifiedInfrastructureEngine {
           });
           provisionedEndpoint=server.ipv4?'http://'+server.ipv4:null;
           provisionedConfig={managed:true,isolation:'dedicated-vps',provider:providerId,external:true,serverId:server.serverId,serverName:server.name,ipv4:server.ipv4,ipv6:server.ipv6,location:server.location,serverType:server.serverType,workerBootstrap:'cloud-init-docker',workerStatus:'bootstrapping'};
+          const workerId=id('wrk');
+          await postgres.execute('INSERT INTO infrastructure_workers(id,organization_id,project_id,environment_id,resource_id,name,status,endpoint,metadata) VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9)',[workerId,ctx.organizationId,ctx.projectId,ctx.environmentId,row.id,server.name,'pending',server.ipv4? 'http://'+server.ipv4:null,JSON.stringify({provider:'hetzner',serverId:server.serverId,dockerBootstrap:'cloud-init'})]);
         } else {
           provisionedConfig={managed:true,provider:providerId,isolation:'container-runtime'};
         }
@@ -282,6 +284,11 @@ export class UnifiedInfrastructureEngine {
       await this.audit(ctx,'service.deactivate.failed','resource',resourceId,{error:String(error?.message||error)});
       throw error;
     }
+  }
+
+  async workers(ctx:UnifiedInfrastructureContext){
+    assertView(ctx);
+    return postgres.query<any>('SELECT id,name,status,endpoint,resource_id,last_seen_at,metadata,created_at,updated_at FROM infrastructure_workers WHERE project_id=$1 AND (environment_id=$2 OR environment_id IS NULL) ORDER BY created_at DESC',[ctx.projectId,ctx.environmentId]);
   }
 
   async providers(ctx:UnifiedInfrastructureContext){ assertView(ctx); return postgres.query<any>('SELECT id,name,type,mode,region,status,metadata,created_at,updated_at FROM infrastructure_providers WHERE organization_id=$1 ORDER BY created_at DESC',[ctx.organizationId]); }
