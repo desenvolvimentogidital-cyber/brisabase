@@ -63,17 +63,26 @@ async function hetznerRequest(path:string,apiToken:string,init:RequestInit = {})
   return body;
 }
 
+function hetznerWorkerUserData():string {
+  return '#cloud-config\npackage_update: true\npackages:\n  - ca-certificates\n  - curl\n  - jq\nruncmd:\n  - [ bash, -lc, "install -d -m 0750 /etc/brisabase-worker" ]\n  - [ bash, -lc, "curl -fsSL https://get.docker.com | sh" ]\n  - [ bash, -lc, "systemctl enable --now docker" ]\n  - [ bash, -lc, "cat > /etc/brisabase-worker/bootstrap.json <<\\'JSON\\'\\n{\\"managed_by\\":\\"brisabase\\",\\"role\\":\\"container-worker\\",\\"docker\\":\\"ready\\"}\\nJSON\\nchmod 0640 /etc/brisabase-worker/bootstrap.json" ]\n';
+}
+
 async function provisionHetznerServer(input:{apiToken:string;name:string;location?:string|null;serverType?:string|null;image?:string|null;sshKeyIds?:Array<string|number>;labels?:Record<string,string>}):Promise<{serverId:number;name:string;ipv4:string|null;ipv6:string|null;location:string|null;serverType:string}> {
   if(!input.apiToken) throw new Error('Hetzner API credential is required.');
   const name=input.name.replace(/[^a-zA-Z0-9._-]/g,'-').slice(0,63)||'brisabase-worker';
   const location=input.location||'fsn1'; const serverType=input.serverType||'cx23'; const image=input.image||'ubuntu-24.04';
   if(!input.sshKeyIds?.length) throw new Error('Hetzner provisioning requires at least one SSH key ID.');
-  const payload:any={name,server_type:serverType,image,location,labels:input.labels||{managed_by:'brisabase',product:'control-plane'}};
+  const payload:any={name,server_type:serverType,image,location,user_data:hetznerWorkerUserData(),labels:input.labels||{managed_by:'brisabase',product:'control-plane',worker:'brisabase-docker'}};
   payload.ssh_keys=input.sshKeyIds.map(String);
   const result=await hetznerRequest('/servers',input.apiToken,{method:'POST',body:JSON.stringify(payload)});
   const server=result?.server;
   if(!server?.id) throw new Error('Hetzner server was created but no server id was returned.');
   return {serverId:Number(server.id),name:server.name,ipv4:server.public_net?.ipv4?.ip||null,ipv6:server.public_net?.ipv6?.ip||null,location:server.datacenter?.location?.name||location,serverType:server.server_type?.name||serverType};
+}
+
+async function deleteHetznerServer(apiToken:string,serverId:number):Promise<void>{
+  if(!apiToken||!Number.isFinite(serverId)) return;
+  await hetznerRequest('/servers/'+encodeURIComponent(String(serverId)),apiToken,{method:'DELETE'});
 }
 
 async function neonRequest(path:string, apiKey:string, init:RequestInit = {}):Promise<any>{
@@ -209,7 +218,7 @@ export class UnifiedInfrastructureEngine {
             labels:{managed_by:'brisabase',organization_id:ctx.organizationId,project_id:ctx.projectId,environment_id:ctx.environmentId,service:'containers'},
           });
           provisionedEndpoint=server.ipv4?'http://'+server.ipv4:null;
-          provisionedConfig={managed:true,isolation:'dedicated-vps',provider:providerId,external:true,serverId:server.serverId,serverName:server.name,ipv4:server.ipv4,ipv6:server.ipv6,location:server.location,serverType:server.serverType};
+          provisionedConfig={managed:true,isolation:'dedicated-vps',provider:providerId,external:true,serverId:server.serverId,serverName:server.name,ipv4:server.ipv4,ipv6:server.ipv6,location:server.location,serverType:server.serverType,workerBootstrap:'cloud-init-docker',workerStatus:'bootstrapping'};
         } else {
           provisionedConfig={managed:true,provider:providerId,isolation:'container-runtime'};
         }
@@ -255,10 +264,24 @@ export class UnifiedInfrastructureEngine {
 
   async deactivate(ctx:UnifiedInfrastructureContext,resourceId:string){
     assertManage(ctx);
-    const rows=await postgres.query<any>('UPDATE infrastructure_resources SET status=$4,updated_at=now() WHERE id=$1 AND project_id=$2 AND environment_id=$3 RETURNING *',[resourceId,ctx.projectId,ctx.environmentId,'deleted']);
-    if(!rows[0]) throw new Error('Infrastructure resource not found.');
-    await this.audit(ctx,'service.deactivate','resource',resourceId,{});
-    return publicResource(rows[0]);
+    const current=(await postgres.query<any>('SELECT * FROM infrastructure_resources WHERE id=$1 AND project_id=$2 AND environment_id=$3',[resourceId,ctx.projectId,ctx.environmentId]))[0];
+    if(!current) throw new Error('Infrastructure resource not found.');
+    try {
+      const cfg=current.config||{};
+      if(current.service==='containers' && cfg.provider && cfg.serverId){
+        const provider=(await postgres.query<any>('SELECT id,type FROM infrastructure_providers WHERE id=$1 AND organization_id=$2',[cfg.provider,ctx.organizationId]))[0];
+        if(provider?.type==='hetzner'){
+          const credential=(await postgres.query<any>('SELECT id FROM infrastructure_credentials WHERE provider_id=$1 AND organization_id=$2 ORDER BY created_at DESC LIMIT 1',[provider.id,ctx.organizationId]))[0];
+          if(credential) await deleteHetznerServer(await this.getCredentialSecret(ctx,credential.id),Number(cfg.serverId));
+        }
+      }
+      const rows=await postgres.query<any>('UPDATE infrastructure_resources SET status=$2,updated_at=now() WHERE id=$1 RETURNING *',[resourceId,'deleted']);
+      await this.audit(ctx,'service.deactivate','resource',resourceId,{provider:cfg.provider||null,serverId:cfg.serverId||null});
+      return publicResource(rows[0]);
+    } catch(error:any) {
+      await this.audit(ctx,'service.deactivate.failed','resource',resourceId,{error:String(error?.message||error)});
+      throw error;
+    }
   }
 
   async providers(ctx:UnifiedInfrastructureContext){ assertView(ctx); return postgres.query<any>('SELECT id,name,type,mode,region,status,metadata,created_at,updated_at FROM infrastructure_providers WHERE organization_id=$1 ORDER BY created_at DESC',[ctx.organizationId]); }
