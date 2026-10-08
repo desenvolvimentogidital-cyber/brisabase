@@ -10,7 +10,7 @@ import { observability } from '../observability';
 
 const PROVIDER_CAPABILITIES: Record<string,{services:string[];deployment:boolean;provisioning:boolean;requiresCredential:boolean}> = {
   docker:{services:['containers','deploy'],deployment:true,provisioning:true,requiresCredential:false},
-  hetzner:{services:['containers'],deployment:false,provisioning:true,requiresCredential:true},
+  hetzner:{services:['containers','deploy'],deployment:true,provisioning:true,requiresCredential:true},
   aws:{services:['containers','postgresql','redis','storage','deploy','domains'],deployment:false,provisioning:false,requiresCredential:true},
   neon:{services:['postgresql'],deployment:false,provisioning:true,requiresCredential:true},
   s3:{services:['storage'],deployment:false,provisioning:false,requiresCredential:true},
@@ -63,16 +63,17 @@ async function hetznerRequest(path:string,apiToken:string,init:RequestInit = {})
   return body;
 }
 
-function hetznerWorkerUserData():string {
-  return '#cloud-config\npackage_update: true\npackages:\n  - ca-certificates\n  - curl\n  - jq\nruncmd:\n  - [ bash, -lc, "install -d -m 0750 /etc/brisabase-worker" ]\n  - [ bash, -lc, "curl -fsSL https://get.docker.com | sh" ]\n  - [ bash, -lc, "systemctl enable --now docker" ]\n  - [ bash, -lc, "printf \'%s\\n\' \'{\\"managed_by\\":\\"brisabase\\",\\"role\\":\\"container-worker\\",\\"docker\\":\\"ready\\"}\' > /etc/brisabase-worker/bootstrap.json && chmod 0640 /etc/brisabase-worker/bootstrap.json" ]\n';
+function hetznerWorkerUserData(input:{workerId:string;enrollmentToken:string;controlPlaneUrl:string}):string {
+  const q=(v:string)=>v.replace(/'/g,"'\\''");
+  return '#cloud-config\npackage_update: true\npackages:\n  - ca-certificates\n  - curl\n  - jq\nruncmd:\n  - [ bash, -lc, "install -d -m 0750 /etc/brisabase-worker" ]\n  - [ bash, -lc, "curl -fsSL https://get.docker.com | sh" ]\n  - [ bash, -lc, "systemctl enable --now docker" ]\n  - [ bash, -lc, "TOKEN='+q(input.enrollmentToken)+'; WORKER_ID='+q(input.workerId)+'; CONTROL='+q(input.controlPlaneUrl)+'; curl -fsS --retry 5 -X POST -H \\\"Content-Type: application/json\\\" -d \\\"{\\\\\\\"worker_id\\\\\\\":\\\\\\\"$WORKER_ID\\\\\\\",\\\\\\\"enrollment_token\\\\\\\":\\\\\\\"$TOKEN\\\\\\\"}\\\" \\\"$CONTROL/internal/infrastructure/workers/enroll\\\" -o /etc/brisabase-worker/enrollment.json; jq -e .worker_token /etc/brisabase-worker/enrollment.json >/dev/null; jq -r .worker_token /etc/brisabase-worker/enrollment.json > /etc/brisabase-worker/token; jq -r .agent_url /etc/brisabase-worker/enrollment.json > /etc/brisabase-worker/agent_url; jq -r .control_plane_url /etc/brisabase-worker/enrollment.json > /etc/brisabase-worker/control_plane_url; chmod 0600 /etc/brisabase-worker/token /etc/brisabase-worker/enrollment.json; curl -fsS -H \\\"Authorization: Bearer $(cat /etc/brisabase-worker/token)\\\" \\\"$(cat /etc/brisabase-worker/agent_url)\\\" -o /etc/brisabase-worker/agent.mjs; cat > /etc/systemd/system/brisabase-worker.service <<\\\"UNIT\\\"\\n[Unit]\\nAfter=docker.service network-online.target\\nWants=network-online.target\\n[Service]\\nType=simple\\nEnvironment=NODE_ENV=production\\nEnvironment=BRISABASE_WORKER_ID=$WORKER_ID\\nEnvironment=BRISABASE_WORKER_TOKEN=$(cat /etc/brisabase-worker/token)\\nEnvironment=BRISABASE_WORKER_CONTROL_PLANE=$(cat /etc/brisabase-worker/control_plane_url)\\nExecStart=/usr/bin/node /etc/brisabase-worker/agent.mjs\\nRestart=always\\nRestartSec=5\\n[Install]\\nWantedBy=multi-user.target\\nUNIT\\n systemctl daemon-reload; systemctl enable --now brisabase-worker" ]\n';
 }
 
-async function provisionHetznerServer(input:{apiToken:string;name:string;location?:string|null;serverType?:string|null;image?:string|null;sshKeyIds?:Array<string|number>;labels?:Record<string,string>}):Promise<{serverId:number;name:string;ipv4:string|null;ipv6:string|null;location:string|null;serverType:string}> {
+async function provisionHetznerServer(input:{apiToken:string;name:string;location?:string|null;serverType?:string|null;image?:string|null;sshKeyIds?:Array<string|number>;labels?:Record<string,string>;userData?:string}):Promise<{serverId:number;name:string;ipv4:string|null;ipv6:string|null;location:string|null;serverType:string}> {
   if(!input.apiToken) throw new Error('Hetzner API credential is required.');
   const name=input.name.replace(/[^a-zA-Z0-9._-]/g,'-').slice(0,63)||'brisabase-worker';
   const location=input.location||'fsn1'; const serverType=input.serverType||'cx23'; const image=input.image||'ubuntu-24.04';
   if(!input.sshKeyIds?.length) throw new Error('Hetzner provisioning requires at least one SSH key ID.');
-  const payload:any={name,server_type:serverType,image,location,user_data:hetznerWorkerUserData(),labels:input.labels||{managed_by:'brisabase',product:'control-plane',worker:'brisabase-docker'}};
+  const payload:any={name,server_type:serverType,image,location,user_data:input.userData||'',labels:input.labels||{managed_by:'brisabase',product:'control-plane',worker:'brisabase-docker'}};
   payload.ssh_keys=input.sshKeyIds.map(String);
   const result=await hetznerRequest('/servers',input.apiToken,{method:'POST',body:JSON.stringify(payload)});
   const server=result?.server;
@@ -210,8 +211,13 @@ export class UnifiedInfrastructureEngine {
       } else if (service === 'containers') {
         if (providerRecord?.type === 'hetzner') {
           const metadata=providerRecord.metadata||{};
+          const workerId=id('wrk');
+          const enrollmentToken=crypto.randomBytes(32).toString('base64url');
+          const enrollmentExpires=new Date(Date.now()+15*60*1000);
+          const controlPlaneUrl=config.apiUrl || config.appUrl;
           const server=await provisionHetznerServer({
             apiToken:providerCredentialSecret||'', name:name+'-'+ctx.environmentId,
+            userData:hetznerWorkerUserData({workerId,enrollmentToken,controlPlaneUrl}),
             location:region||providerRecord.region||metadata.location||null,
             serverType:metadata.server_type||'cx23', image:metadata.image||'ubuntu-24.04',
             sshKeyIds:Array.isArray(metadata.ssh_key_ids)?metadata.ssh_key_ids:[],
@@ -219,8 +225,11 @@ export class UnifiedInfrastructureEngine {
           });
           provisionedEndpoint=server.ipv4?'http://'+server.ipv4:null;
           provisionedConfig={managed:true,isolation:'dedicated-vps',provider:providerId,external:true,serverId:server.serverId,serverName:server.name,ipv4:server.ipv4,ipv6:server.ipv6,location:server.location,serverType:server.serverType,workerBootstrap:'cloud-init-docker',workerStatus:'bootstrapping'};
-          const workerId=id('wrk');
-          await postgres.execute('INSERT INTO infrastructure_workers(id,organization_id,project_id,environment_id,resource_id,name,status,endpoint,metadata) VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9)',[workerId,ctx.organizationId,ctx.projectId,ctx.environmentId,row.id,server.name,'pending',server.ipv4? 'http://'+server.ipv4:null,JSON.stringify({provider:'hetzner',serverId:server.serverId,dockerBootstrap:'cloud-init'})]);
+                    await postgres.execute('INSERT INTO infrastructure_workers(id,organization_id,project_id,environment_id,resource_id,name,status,endpoint,enrollment_hash,enrollment_expires_at,metadata) VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11)',
+            [workerId,ctx.organizationId,ctx.projectId,ctx.environmentId,row.id,server.name,'pending',server.ipv4?'http://'+server.ipv4:null,crypto.createHash('sha256').update(enrollmentToken).digest('hex'),enrollmentExpires,JSON.stringify({provider:'hetzner',serverId:server.serverId,dockerBootstrap:'cloud-init',enrollment:'one-time',enrollmentExpiresAt:enrollmentExpires.toISOString()})]);
+          await postgres.execute('UPDATE infrastructure_resources SET config=$2 WHERE id=$1',[row.id,JSON.stringify({...provisionedConfig,workerId,workerStatus:'pending'})]);
+          // The bootstrap token is intentionally one-time and expires after 15 minutes.
+          await postgres.execute('UPDATE infrastructure_resources SET config=config || $2::jsonb WHERE id=$1',[row.id,JSON.stringify({workerBootstrap:'cloud-init-docker-agent'})]);
         } else {
           provisionedConfig={managed:true,provider:providerId,isolation:'container-runtime'};
         }
@@ -331,8 +340,22 @@ export class UnifiedInfrastructureEngine {
     const row=(await postgres.query<any>('INSERT INTO infrastructure_deployments(id,organization_id,project_id,environment_id,provider_id,source,image,commit_sha,status,replicas,url,created_by,started_at) VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,now()) RETURNING *',[id('dep'),ctx.organizationId,ctx.projectId,ctx.environmentId,input.provider_id||null,String(input.source||'control-plane'),image||null,input.commit_sha||null,'deploying',replicas,input.url||null,ctx.userId]))[0];
     try {
       let result:any={provider,status:'accepted'};
-      if(provider==='docker') { if(!image) throw new Error('Docker deployments require an image.'); if(process.env.BRISABASE_DOCKER_ENABLED!=='true') throw new Error('Docker deployment adapter is disabled. Enable it only on a dedicated infrastructure worker.'); result=await dockerAdapter.deploy({image,name,replicas,port:input.port?Number(input.port):undefined,hostPort:input.hostPort?Number(input.hostPort):undefined,env:input.env&&typeof input.env==='object'?input.env:{}}); }
-      else if(provider!=='logical') throw new Error('Unsupported deployment provider.');
+      if(provider==='hetzner') {
+        if(!image) throw new Error('Hetzner deployments require an image.');
+        const worker=(await postgres.query<any>('SELECT id FROM infrastructure_workers WHERE project_id=$1 AND environment_id=$2 AND status=\'online\' ORDER BY last_seen_at DESC NULLS LAST LIMIT 1',[ctx.projectId,ctx.environmentId]))[0];
+        if(!worker) throw new Error('No online infrastructure worker is available for this environment.');
+        const jobId=id('job');
+        await postgres.execute('INSERT INTO infrastructure_worker_jobs(id,worker_id,organization_id,project_id,environment_id,kind,payload,status) VALUES($1,$2,$3,$4,$5,$6,$7,$8)',
+          [jobId,worker.id,ctx.organizationId,ctx.projectId,ctx.environmentId,'docker.deploy',JSON.stringify({deploymentId:row.id,image,name,replicas,port:input.port?Number(input.port):undefined,hostPort:input.hostPort?Number(input.hostPort):undefined,env:input.env&&typeof input.env==='object'?input.env:{}}),'queued']);
+        const updated=await postgres.query<any>('UPDATE infrastructure_deployments SET status=\'queued\' WHERE id=$1 RETURNING *',[row.id]);
+        await this.audit(ctx,'deployment.queued','deployment',row.id,{provider,workerId:worker.id,jobId});
+        return updated[0];
+      }
+      if(provider==='docker') {
+        if(!image) throw new Error('Docker deployments require an image.');
+        if(process.env.BRISABASE_DOCKER_ENABLED!=='true') throw new Error('Docker deployment adapter is disabled. Enable it only on a dedicated infrastructure worker.');
+        result=await dockerAdapter.deploy({image,name,replicas,port:input.port?Number(input.port):undefined,hostPort:input.hostPort?Number(input.hostPort):undefined,env:input.env&&typeof input.env==='object'?input.env:{}});
+      } else if(provider!=='logical') throw new Error('Unsupported deployment provider.');
       const updated=(await postgres.query<any>('UPDATE infrastructure_deployments SET status=$2,logs=$3,finished_at=now() WHERE id=$1 RETURNING *',[row.id,'completed',JSON.stringify(result)]))[0];
       await this.recordUsage(ctx,'deploy','deployment',1,'deployment',{deploymentId:row.id,provider});
       if (provider === 'docker') await this.recordUsage(ctx,'containers','container_deployment',replicas,'container',{deploymentId:row.id});
