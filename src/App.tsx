@@ -26,6 +26,7 @@ const EnterprisePage = lazy(() => import('./brisabase/pages/EnterprisePage').the
 const GraphqlPage = lazy(() => import('./brisabase/pages/GraphqlPage').then((module) => ({ default: module.GraphqlPage })));
 const HostingPage = lazy(() => import('./brisabase/pages/HostingPage').then((module) => ({ default: module.HostingPage })));
 const InfrastructurePage = lazy(() => import('./brisabase/pages/InfrastructurePage').then((module) => ({ default: module.InfrastructurePage })));
+const InfrastructureCenter = lazy(() => import('./pages/InfrastructureCenter').then((module) => ({ default: module.InfrastructureCenter })));
 const MessagingPage = lazy(() => import('./brisabase/pages/MessagingPage').then((module) => ({ default: module.MessagingPage })));
 const ObservabilityPage = lazy(() => import('./brisabase/pages/ObservabilityPage').then((module) => ({ default: module.ObservabilityPage })));
 const PreviewDatabasePage = lazy(() => import('./brisabase/pages/PreviewDatabasePage').then((module) => ({ default: module.PreviewDatabasePage })));
@@ -253,6 +254,14 @@ export default function App() {
             element={
               <AppLayout>
                 {isRealMode ? <ObservabilityPage /> : <Analytics />}
+              </AppLayout>
+            }
+          />
+          <Route
+            path="/platform"
+            element={
+              <AppLayout>
+                {isRealMode ? <InfrastructureCenter /> : <PlatformExpansion module="hosting" />}
               </AppLayout>
             }
           />

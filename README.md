@@ -2,6 +2,20 @@
 
 BrisaBase é um BaaS baseado em PostgreSQL com console visual e runtime real para Database, Authentication, Storage, Realtime, Webhooks, Functions, REST, GraphQL, Backup, Hosting, infraestrutura operacional, Remote Config, Feature Flags, Experiments, Product Analytics, App Quality, Search/Vector/RAG, AI Gateway, Messaging multicanal, Billing, Enterprise e Infrastructure as Code.
 
+## Unified Infrastructure Control Plane
+
+A camada `/platform` centraliza recursos de infraestrutura por projeto e ambiente. Ela suporta catálogo de serviços, provedores/BYOK, credenciais cifradas, deployments, medição de uso e auditoria. O primeiro executor real é o adapter Docker, protegido por `BRISABASE_DOCKER_ENABLED=false` por padrão. Em produção, habilite-o somente em um worker dedicado com permissões mínimas sobre o Docker Engine; a API pública não deve receber o socket Docker diretamente.
+
+### Neon PostgreSQL provisioning
+
+The control plane now has a real Neon adapter for PostgreSQL. When a Neon provider is connected with a BYOK API key, activation can create a Neon project (when `metadata.org_id` is supplied) or reuse `metadata.project_id`, then create an isolated read/write branch for the BrisaBase project environment. The returned connection string is encrypted at rest and is never returned by the resource API.
+
+For a Neon provider, configure:
+- `metadata.project_id` to reuse an existing Neon project, or
+- `metadata.org_id` to let BrisaBase create the Neon project, plus an optional region such as `aws-us-east-2`.
+
+The Neon API key is stored as an encrypted BYOK credential. The control plane does not print or expose that secret in provider/resource listings.
+
 ## Advanced Platform — Fase 7
 
 A base **1.0.0** fecha as oito fases de implementação; **1.0.1-beta.1** prepara a certificação e distribuição do beta sem mover a tag anterior. Billing comercial é provider-aware, Enterprise adiciona SSO/SCIM/RBAC/SIEM/políticas e IaC oferece manifests com checksum e drift detection. Recursos externos só são considerados ativos quando seus providers e credenciais reais estão configurados.
@@ -192,3 +206,13 @@ npm run release:validate:docker
 Antes de lançamento público, revise `docs/legal/TERMS_TEMPLATE.md`, `docs/legal/PRIVACY_TEMPLATE.md` e complete `docs/GO_LIVE_CHECKLIST.md`.
 
 O processo de beta está documentado em `docs/BETA_POLICY.md`, `docs/RELEASE_PROCESS.md`, `docs/REPOSITORY_GOVERNANCE.md` e `SECURITY.md`. O canal de distribuição do candidato é o artefato imutável produzido pelo **BrisaBase Production Gate**; não trate a branch `main` ou um build local como release.
+
+### Hetzner container hosts
+
+The control plane can provision a real Hetzner Cloud server when the `containers` service is activated with a Hetzner provider. The provider uses the customer's encrypted BYOK API token. Server type, image, location and SSH key IDs are configurable through provider metadata; the resulting server ID and public addresses are stored as resource metadata without exposing the API token.
+
+Provisioning sends cloud-init user data to bootstrap Docker and enroll a BrisaBase worker agent. Enrollment uses a one-time random token stored only as a SHA-256 hash in the control plane and expires after 15 minutes. After enrollment, the worker receives a separate bearer token, downloads the agent over the authenticated control-plane endpoint, and runs it as a systemd service. The worker sends heartbeats and polls a scoped job queue; the agent only accepts allowlisted Docker jobs and never exposes the Docker socket to the public API.
+
+Hetzner-backed deployments are queued to an online worker and execute through the worker agent. Job results update deployment status and logs in the control plane. Deleting a Hetzner-backed container resource still attempts to delete the corresponding Cloud Server, preventing abandoned VPS resources from continuing to incur charges.
+
+This implementation relies on Hetzner Cloud's documented server creation/user-data and deletion APIs.
