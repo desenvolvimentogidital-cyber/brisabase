@@ -70,6 +70,7 @@ import { webhookEngine } from './server/webhooks/webhookEngine';
 import { developerRouter } from './server/routes/developer';
 import { advancedDataRouter, advancedManagementRouter } from './server/routes/advancedPlatform';
 import { unifiedInfrastructureRouter } from './server/routes/unifiedInfrastructure';
+import { infrastructureWorkersRouter } from './server/routes/infrastructureWorkers';
 import { advancedPlatformEngine } from './server/platform/advancedPlatformEngine';
 
 async function startServer() {
@@ -160,6 +161,9 @@ async function startServer() {
     next();
   });
 
+  // Worker endpoints authenticate with short-lived enrollment or per-worker bearer tokens.
+  // They must be mounted before user auth because workers are not human sessions.
+  app.use(infrastructureWorkersRouter);
   app.use(authMiddleware);
   app.use(controlPlaneAuthorizationMiddleware);
   app.use(unifiedInfrastructureRouter);
