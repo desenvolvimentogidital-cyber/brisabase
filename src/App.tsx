@@ -3,6 +3,8 @@ import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
 import { AppProvider } from './context/AppContext';
 import { AppLayout } from './components/layout/AppLayout';
 import { isRealMode } from './services/runtime';
+import QuotingApp from './quoting/QuotingApp';
+import AdminApp from './quoting/AdminApp';
 
 const Dashboard = lazy(() => import('./pages/Dashboard').then((module) => ({ default: module.Dashboard })));
 const Database = lazy(() => import('./pages/Database').then((module) => ({ default: module.Database })));
@@ -322,6 +324,10 @@ export default function App() {
               </AppLayout>
             }
           />
+
+          {/* Prestadores de serviços — app independente do shell BrisaBase */}
+          <Route path="/orcamentos/*" element={<QuotingApp />} />
+          <Route path="/admin-orcamentos/*" element={<AdminApp />} />
 
           {/* Catch-all redirect to Dashboard */}
           <Route path="*" element={<Navigate to="/" replace />} />
